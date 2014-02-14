@@ -4,7 +4,6 @@ Synopsis:            Efficient relational queries on Haskell sets.
 Description:
     Create and query sets that are indexed by multiple indices.
 License:             BSD3
-License-file:        COPYING
 Author:              Andres Loeh, Happstack team, HAppS LLC
 Maintainer:          Andres Loeh <andres@well-typed.com>
 Category:            Data Structures
