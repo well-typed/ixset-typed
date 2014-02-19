@@ -1,6 +1,7 @@
 {-# LANGUAGE UndecidableInstances, OverlappingInstances, FlexibleInstances,
              MultiParamTypeClasses, TemplateHaskell, PolymorphicComponents,
-             DeriveDataTypeable,ExistentialQuantification #-}
+             DeriveDataTypeable,ExistentialQuantification, KindSignatures,
+             StandaloneDeriving, GADTs #-}
 
 {- |
 
@@ -8,7 +9,7 @@ This module defines 'Typeable' indexes and convenience functions. Should
 probably be considered private to "Data.IxSet".
 
 -}
-module Data.IxSet.Ix
+module Data.IxSet.Typed.Ix
     ( Ix(..)
     , insert
     , delete
@@ -31,16 +32,18 @@ import qualified Data.Set   as Set
 
 -- | 'Ix' is a 'Map' from some 'Typeable' key to a 'Set' of values for
 -- that key.  'Ix' carries type information inside.
-data Ix a = forall key . (Typeable key, Ord key) =>
-            Ix (Map key (Set a)) (a -> [key])
-    deriving Typeable
+data Ix (ix :: *) (a :: *) where
+  Ix :: Map ix (Set a) -> (a -> [ix]) -> Ix ix a
 
+-- deriving instance Typeable (Ix ix a)
+
+{-
  -- minimal hacky instance
 instance Data a => Data (Ix a) where
     toConstr (Ix _ _) = con_Ix_Data
     gunfold _ _     = error "gunfold"
     dataTypeOf _    = ixType_Data
-
+-}
 
 con_Ix_Data :: Constr
 con_Ix_Data = mkConstr ixType_Data "Ix" [] Prefix
@@ -52,12 +55,14 @@ ixConstr = SYBWC.mkConstr ixDataType "Ix" [] SYBWC.Prefix
 ixDataType :: SYBWC.DataType
 ixDataType = SYBWC.mkDataType "Ix" [ixConstr]
 
+{-
 instance (SYBWC.Data ctx a, SYBWC.Sat (ctx (Ix a)))
        => SYBWC.Data ctx (Ix a) where
     gfoldl = error "gfoldl Ix"
     toConstr _ (Ix _ _)    = ixConstr
     gunfold = error "gunfold Ix"
     dataTypeOf _ _ = ixDataType
+-}
 
 -- modification operations
 
