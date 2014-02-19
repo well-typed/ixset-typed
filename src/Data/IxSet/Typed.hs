@@ -743,30 +743,22 @@ getRange k1 k2 ixset = getGTE k1 (getLT k2 ixset)
 
 -- | Returns lists of elements paired with the indexes determined by
 -- type inference.
-groupBy :: IsIndexOf ix ixs => IxSet ixs a -> [(ix, [a])]
-groupBy indexes = error "TODO"
-{-
-  collect indexes
+groupBy :: forall ix ixs a. IsIndexOf ix ixs => IxSet ixs a -> [(ix, [a])]
+groupBy indexes = f (access indexes)
   where
-    collect [] = [] -- FIXME: should be an error
-    collect (Ix index _:is) = maybe (collect is) f (cast index)
-    f = map (second Set.toList) . Map.toList
--}
+    f :: Ix ix a -> [(ix, [a])]
+    f (Ix index _) = map (second Set.toList) (Map.toList index)
 
 -- | Returns lists of elements paired with the indexes determined by
 -- type inference.
 --
 -- The resulting list will be sorted in ascending order by 'ix'.
 -- The values in '[a]' will be sorted in ascending order as well.
-groupAscBy :: IsIndexOf ix ixs =>  IxSet ixs a -> [(ix, [a])]
-groupAscBy indexes = error "TODO"
-{-
-  collect indexes
-    where
-    collect [] = [] -- FIXME: should be an error
-    collect (Ix index _:is) = maybe (collect is) f (cast index)
-    f = map (second Set.toAscList) . Map.toAscList
--}
+groupAscBy :: forall ix ixs a. IsIndexOf ix ixs =>  IxSet ixs a -> [(ix, [a])]
+groupAscBy indexes = f (access indexes)
+  where
+    f :: Ix ix a -> [(ix, [a])]
+    f (Ix index _) = map (second Set.toAscList) (Map.toAscList index)
 
 -- | Returns lists of elements paired with the indexes determined by
 -- type inference.
@@ -777,14 +769,10 @@ groupAscBy indexes = error "TODO"
 -- order. But this may change if someone bothers to add
 -- 'Set.toDescList'. So do not rely on the sort order of '[a]'.
 groupDescBy :: IsIndexOf ix ixs =>  IxSet ixs a -> [(ix, [a])]
-groupDescBy indexes = error "TODO"
-{-
-collect indexes
-    where
-    collect [] = [] -- FIXME: should be an error
-    collect (Ix index _:is) = maybe (collect is) f (cast index)
-    f = map (second Set.toAscList) . Map.toDescList
--}
+groupDescBy indexes = f (access indexes)
+  where
+    f :: Ix ix a -> [(ix, [a])]
+    f (Ix index _) = map (second Set.toAscList) (Map.toDescList index)
 
 --query impl function
 
