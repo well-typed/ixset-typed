@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, TemplateHaskell, OverlappingInstances, UndecidableInstances, TemplateHaskell #-}
+{-# LANGUAGE DeriveDataTypeable, TemplateHaskell, OverlappingInstances, UndecidableInstances, TemplateHaskell, DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
 
 -- Check that the SYBWC Data instance for IxSet works, by testing
 -- that going to and from XML works.
@@ -8,7 +8,7 @@ module Data.IxSet.Tests where
 import           Control.Monad
 import           Control.Exception as E
 import           Data.Data         as Data
-import           Data.IxSet        as IxSet
+import           Data.IxSet.Typed  as IxSet
 import           Data.Map          (Map)
 import qualified Data.Map          as Map
 import           Data.Maybe
@@ -84,9 +84,8 @@ fooCalcs (Foo s _) = s ++ "bar"
 $(inferIxSet "Foos" ''Foo 'fooCalcs [''String, ''Int])
 
 
-instance Indexable S where
-    empty =  ixSet [ ixFun (\(S x) -> [length x])
-                   ]
+instance Indexable '[Int] S where
+    empty =  ixSet (ixFun (\(S x) -> [length x]))
     -- calcs _ = ()
 
 ixSetCheckMethodsOnDefault :: Test
@@ -96,7 +95,7 @@ ixSetCheckMethodsOnDefault = "ixSetCheckMethodsOnDefault" ~: test
    , "getOne returns Nothing" ~:
      Nothing @=? getOne (IxSet.empty :: Foos)
    , "getOneOr returns default" ~:
-     Foo1 "" 44 @=? getOneOr (Foo1 "" 44) IxSet.empty
+     Foo1 "" 44 @=? getOneOr (Foo1 "" 44) (IxSet.empty :: FooXs) -- TODO: type annotation now necessary
    , "toList returns []" ~:
      [] @=? toList (IxSet.empty :: Foos)
    ]
@@ -137,15 +136,16 @@ isError x = (x `seq` return False) `E.catch` \(ErrorCall _) -> return True
 badIndexSafeguard :: Test
 badIndexSafeguard = "badIndexSafeguard" ~: test
                     [ "check if there is error when no first index on value" ~:
-                      isError (size $ insert (BadlyIndexed 123) empty)
-                    , "check if indexing with missing index" ~:
-                      isError (getOne (foox_set_cde @= True))
+                      isError (size (insert (BadlyIndexed 123) empty :: BadlyIndexeds)) -- TODO: type sig now necessary
+-- TODO / GOOD: this is a type error now
+--                    , "check if indexing with missing index" ~:
+--                      isError (getOne (foox_set_cde @= True))
                     ]
 
 testTriple :: Test
 testTriple = "testTriple" ~: test
              [ "check if we can find element" ~:
-               1 @=? size ((insert (Triple 1 2 3) empty)
+               1 @=? size ((insert (Triple 1 2 3) empty :: Triples) -- TODO: type sig now necessary
                            @= (1::Int) @= (2::Int))
              ]
 
@@ -153,8 +153,8 @@ testTriple = "testTriple" ~: test
 instance Arbitrary Foo where
     arbitrary = liftM2 Foo arbitrary arbitrary
 
-instance (Arbitrary a,Data.Data a, Ord a, Indexable a) =>
-    Arbitrary (IxSet a) where
+instance (Arbitrary a,Data.Data a, Ord a, Indexable ixs a) =>
+    Arbitrary (IxSet ixs a) where
     arbitrary = liftM fromList arbitrary
 
 prop_sizeEqToListLength :: Foos -> Bool
@@ -219,7 +219,7 @@ prop_all :: Foos -> [Int] -> Bool
 prop_all ixset idxs =
     (ixset @* idxs) == foldr intersection ixset (map ((@=) ixset) idxs)
 
-funSet :: IxSet S
+funSet :: IxSet '[Int] S
 funSet = IxSet.fromList [S "", S "abc", S "def", S "abcde"]
 
 funIndexes :: Test

@@ -3,7 +3,8 @@
              FunctionalDependencies, DeriveDataTypeable,
              GADTs, CPP, ScopedTypeVariables, KindSignatures,
              DataKinds, TypeOperators, StandaloneDeriving,
-             TypeFamilies, ScopedTypeVariables, ConstraintKinds #-}
+             TypeFamilies, ScopedTypeVariables, ConstraintKinds,
+             FunctionalDependencies #-}
 
 {- |
 An efficient implementation of queryable sets.
@@ -90,8 +91,8 @@ module Data.IxSet.Typed
      Indexable(..),
      Proxy(..),
      noCalcs,
-     -- inferIxSet,
-     -- ixSet,
+     inferIxSet,
+     ixSet,
      ixFun,
      ixGen,
 
@@ -237,10 +238,17 @@ instance IsIndexOf ix ixs => IsIndexOf ix (ix' ': ixs) where
 --
 -- Every value in the 'IxSet' must be reachable by the first index in this
 -- list, or you'll get a runtime error.
-{-
-ixSet :: [Ix a] -> IxSet a
-ixSet = IxSet
--}
+ixSet :: MkIxSet ixs ixs a r => r
+ixSet = ixSet' id
+
+class MkIxSet ixs ixs' a r | r -> a ixs ixs' where
+  ixSet' :: (IxSet ixs a -> IxSet ixs' a) -> r
+
+instance MkIxSet '[] ixs a (IxSet ixs a) where
+  ixSet' acc = acc Nil
+
+instance MkIxSet ixs ixs' a r => MkIxSet (ix ': ixs) ixs' a (Ix ix a -> r) where
+  ixSet' acc ix = ixSet' (\ x -> acc (ix ::: x))
 
 -- | Create a functional index. Provided function should return a list
 -- of indexes where the value should be found.
@@ -363,7 +371,6 @@ itself. For example:
 > $(inferIxSet "FooDB" ''Foo 'noCalcs [''Foo, ''Int, ''String])
 
 -}
-{-
 inferIxSet :: String -> TH.Name -> TH.Name -> [TH.Name] -> Q [Dec]
 inferIxSet _ _ _ [] = error "inferIxSet needs at least one index"
 inferIxSet ixset typeName calName entryPoints
@@ -386,7 +393,7 @@ inferIxSet ixset typeName calName entryPoints
 
              mkCtx = mkType
 #endif
-             dataCtxConQ = [mkCtx ''Data [varT name] | name <- names]
+             dataCtxConQ = concat [[mkCtx ''Data [varT name], mkCtx ''Ord [varT name]] | name <- names]
              fullContext = do
                 dataCtxCon <- sequence dataCtxConQ
                 return (context ++ dataCtxCon)
@@ -401,14 +408,17 @@ inferIxSet ixset typeName calName entryPoints
                                                              appT (appT (conT ''Map) (conT n))
                                                                       (appT (conT ''Set) typeCon))) `appE`
                                     (varE 'flattenWithCalcs `appE` varE calName)
+                   mkTypeList :: [TypeQ] -> TypeQ
+                   mkTypeList = foldr (\ x xs -> promotedConsT `appT` x `appT` xs) promotedNilT
+                   typeList :: TypeQ
+                   typeList = mkTypeList (map conT entryPoints)
                in do i <- instanceD (fullContext)
-                          (conT ''Indexable `appT` typeCon)
-                          [valD (varP 'empty) (normalB [| ixSet $(listE (map mkEntryPoint entryPoints)) |]) []]
-                     let ixType = appT (conT ''IxSet) typeCon
+                          (conT ''Indexable `appT` typeList `appT` typeCon)
+                          [valD (varP 'empty) (normalB (appsE ([| ixSet |] : map mkEntryPoint entryPoints))) []]
+                     let ixType = conT ''IxSet `appT` typeList `appT` typeCon
                      ixType' <- tySynD (mkName ixset) binders ixType
                      return $ [i, ixType']  -- ++ d
            _ -> error "IxSet.inferIxSet calInfo unexpected match"
--}
 
 -- | Version of 'instanceD' that takes in a Q [Dec] instead of a [Q Dec]
 -- and filters out signatures from the list of declarations.
