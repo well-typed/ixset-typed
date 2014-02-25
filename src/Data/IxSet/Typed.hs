@@ -4,7 +4,7 @@
              GADTs, CPP, ScopedTypeVariables, KindSignatures,
              DataKinds, TypeOperators, StandaloneDeriving,
              TypeFamilies, ScopedTypeVariables, ConstraintKinds,
-             FunctionalDependencies #-}
+             FunctionalDependencies, FlexibleContexts #-}
 
 {- |
 An efficient implementation of queryable sets.
@@ -292,7 +292,7 @@ instance (Serialize a, Ord a, Typeable a, Indexable a) => Serialize (IxSet a) wh
     getCopy = contain $ liftM fromList safeGet
 -}
 
-instance (Indexable ixs a, SafeCopy a) => SafeCopy (IxSet ixs a) where
+instance (Indexable (ix ': ixs) a, SafeCopy a) => SafeCopy (IxSet (ix ': ixs) a) where
   putCopy = contain . safePut . toList
   getCopy = contain $ fmap fromList safeGet
 
@@ -326,7 +326,7 @@ instance (Indexable a, Ord a,Data a, Default a) => Default (IxSet a) where
 instance (Indexable ixs a, Show a) => Show (IxSet ixs a) where
     showsPrec prec = showsPrec prec . toSet
 
-instance (Indexable ixs a, Read a) => Read (IxSet ixs a) where
+instance (Indexable (ix ': ixs) a, Read a) => Read (IxSet (ix ': ixs) a) where
     readsPrec n = map (first fromSet) . readsPrec n
 
 type family All (c :: * -> Constraint) (xs :: [*]) :: Constraint
@@ -448,36 +448,44 @@ flattenWithCalcs calcs x = flatten (x,calcs x)
 -- | Higher order operator for modifying 'IxSet's.  Use this when your
 -- final function should have the form @a -> 'IxSet' a -> 'IxSet' a@,
 -- e.g. 'insert' or 'delete'.
-change :: forall ixs a. (Indexable ixs a) =>
-          IndexOp -> a -> IxSet ixs a -> IxSet ixs a
-change op x indexes = v
+change :: forall ix ixs a. (Indexable (ix ': ixs) a) =>
+          IndexOp -> a -> IxSet (ix ': ixs) a -> IxSet (ix ': ixs) a
+change op x (index ::: indexes) = v
   where
-    v :: IxSet ixs a
-    v = mapIxSet update indexes
+    v :: IxSet (ix ': ixs) a
+    v = update True index ::: mapIxSet (update False) indexes
 
-    update :: forall ix. Ord ix => Ix ix a -> Ix ix a
-    update (Ix index f) = Ix index' f
+    update :: forall ix. Ord ix => Bool -> Ix ix a -> Ix ix a
+    update firstindex (Ix index f) = Ix index' f
       where
         ds :: [ix]
         ds = f x
         ii :: forall k. Ord k => Map k (Set a) -> k -> Map k (Set a)
         ii m dkey = op dkey x m
         index' :: Map ix (Set a)
-        index' = List.foldl' ii index ds
--- TODO: the "first index check" isn't implemented
+        index'
+          | firstindex && List.null ds = error "Data.IxSet.Typed.change: all values must appear in first declared index"
+          | otherwise                  = List.foldl' ii index ds
+-- TODO: the "first index check" is implemented, but I don't like it
 
-insertList :: forall ixs a. (Indexable ixs a)
-            => [a] -> IxSet ixs a -> IxSet ixs a
-insertList xs indexes = v
+insertList :: forall ix ixs a. (Indexable (ix ': ixs) a)
+            => [a] -> IxSet (ix ': ixs) a -> IxSet (ix ': ixs) a
+insertList xs (index ::: indexes) = v
   where
-    v :: IxSet ixs a
-    v = mapIxSet update indexes
+    v :: IxSet (ix ': ixs) a
+    v = update True index ::: mapIxSet (update False) indexes
 
-    update :: forall ix. Ord ix => Ix ix a -> Ix ix a
-    update (Ix index f) = Ix index' f
+    update :: forall ix. Ord ix => Bool -> Ix ix a -> Ix ix a
+    update firstindex (Ix index f) = Ix index' f
       where
         dss :: [(ix, a)]
-        dss = [(k, x) | x <- xs, k <- f x]
+        dss = [(k, x) | x <- xs, k <- fcheck x]
+
+        fcheck x
+          | firstindex = case f x of
+                           [] -> error "Data.IxSet.Typed.insertList: all values must appear in first declared index"
+                           r  -> r
+          | otherwise  = f x
 
         index' :: Map ix (Set a)
         index' = Ix.insertList dss index
@@ -522,18 +530,18 @@ insertMapOfSets originalindex indexes = mapAt updateh updatet indexes
 -- | Inserts an item into the 'IxSet'. If your data happens to have
 -- a primary key this function might not be what you want. See
 -- 'updateIx'.
-insert :: Indexable ixs a => a -> IxSet ixs a -> IxSet ixs a
+insert :: Indexable (ix ': ixs) a => a -> IxSet (ix ': ixs) a -> IxSet (ix ': ixs) a
 insert = change Ix.insert
 
 -- | Removes an item from the 'IxSet'.
-delete :: Indexable ixs a => a -> IxSet ixs a -> IxSet ixs a
+delete :: Indexable (ix ': ixs) a => a -> IxSet (ix ': ixs) a -> IxSet (ix ': ixs) a
 delete = change Ix.delete
 
 -- | Will replace the item with index k.  Only works if there is at
 -- most one item with that index in the 'IxSet'. Will not change
 -- 'IxSet' if you have more then 1 item with given index.
-updateIx :: (Indexable ixs a, IsIndexOf ix ixs, Ord ix)
-         => ix -> a -> IxSet ixs a -> IxSet ixs a
+updateIx :: (Indexable (ix' ': ixs) a, IsIndexOf ix (ix' ': ixs), Ord ix)
+         => ix -> a -> IxSet (ix' ': ixs) a -> IxSet (ix' ': ixs) a
 updateIx i new ixset = insert new $
                      maybe ixset (flip delete ixset) $
                      getOne $ ixset @= i
@@ -541,8 +549,8 @@ updateIx i new ixset = insert new $
 -- | Will delete the item with index k.  Only works if there is at
 -- most one item with that index in the 'IxSet'. Will not change
 -- 'IxSet' if you have more then 1 item with given index.
-deleteIx :: (Indexable ixs a, IsIndexOf ix ixs, Ord ix)
-         => ix -> IxSet ixs a -> IxSet ixs a
+deleteIx :: (Indexable (ix' ': ixs) a, IsIndexOf ix (ix' ': ixs), Ord ix)
+         => ix -> IxSet (ix' ': ixs) a -> IxSet (ix' ': ixs) a
 deleteIx i ixset = maybe ixset (flip delete ixset) $
                        getOne $ ixset @= i
 
@@ -554,11 +562,11 @@ toSet (Ix ix _ ::: _) = Set.unions (Map.elems ix)
 toSet Nil             = Set.empty
 
 -- | Converts a 'Set' to an 'IxSet'.
-fromSet :: (Indexable ixs a) => Set a -> IxSet ixs a
+fromSet :: (Indexable (ix ': ixs) a) => Set a -> IxSet (ix ': ixs) a
 fromSet = fromList . Set.toList
 
 -- | Converts a list to an 'IxSet'.
-fromList :: (Indexable ixs a) => [a] -> IxSet ixs a
+fromList :: (Indexable (ix ': ixs) a) => [a] -> IxSet (ix ': ixs) a
 fromList list = insertList list empty
 
 -- | Returns the number of unique items in the 'IxSet'.

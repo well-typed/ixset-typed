@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, TemplateHaskell, OverlappingInstances, UndecidableInstances, TemplateHaskell, DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE DeriveDataTypeable, TemplateHaskell, OverlappingInstances, UndecidableInstances, TemplateHaskell, DataKinds, FlexibleInstances, MultiParamTypeClasses, TypeOperators #-}
 {-# OPTIONS_GHC -fdefer-type-errors #-}
 
 -- Check that the SYBWC Data instance for IxSet works, by testing
@@ -131,9 +131,6 @@ ixSetCheckSetMethods = "ixSetCheckSetMethods" ~: test
      3 @=? length (toList foox_set_abc)
    ]
 
-testl :: [Int]
-testl = [1, True]
-
 isError :: a -> IO Bool
 isError x = (x `seq` return False) `E.catch` \(ErrorCall _) -> return True
 
@@ -157,8 +154,8 @@ testTriple = "testTriple" ~: test
 instance Arbitrary Foo where
     arbitrary = liftM2 Foo arbitrary arbitrary
 
-instance (Arbitrary a,Data.Data a, Ord a, Indexable ixs a) =>
-    Arbitrary (IxSet ixs a) where
+instance (Arbitrary a, Indexable (ix ': ixs) a) =>
+    Arbitrary (IxSet (ix ': ixs) a) where
     arbitrary = liftM fromList arbitrary
 
 prop_sizeEqToListLength :: Foos -> Bool
