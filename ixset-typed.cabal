@@ -26,7 +26,7 @@ Library
 
   Build-Depends:       containers,
                        safecopy,
-                       template-haskell
+                       template-haskell >= 2.4
 
   hs-source-dirs:      src
   Exposed-modules:

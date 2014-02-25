@@ -161,7 +161,7 @@ import Prelude hiding (null)
 
 import           Control.Arrow  (first, second)
 import           Data.Generics  (Data, gmapQ)
-import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
+-- import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
 import qualified Data.IxSet.Typed.Ix  as Ix
 import           Data.IxSet.Typed.Ix  (Ix(Ix))
 import qualified Data.List      as List
@@ -182,12 +182,6 @@ import GHC.Exts (Constraint)
 
 data Proxy a = Proxy
 
-mkProxy :: a -> Proxy a
-mkProxy _ = Proxy
-
-asProxyType :: a -> Proxy a -> a
-asProxyType a _ = a
-
 -- the core datatypes
 
 -- | Set with associated indexes.
@@ -203,14 +197,15 @@ infixr 5 :::
 mapIxSet :: (All Ord ixs)
          => (forall ix. Ord ix => Ix ix a -> Ix ix a)
          -> IxSet ixs a -> IxSet ixs a
-mapIxSet f Nil        = Nil
+mapIxSet _ Nil        = Nil
 mapIxSet f (x ::: xs) = f x ::: mapIxSet f xs
 
 zipWithIxSet :: (All Ord ixs)
              => (forall ix. Ord ix => Ix ix a -> Ix ix a -> Ix ix a)
              -> IxSet ixs a -> IxSet ixs a -> IxSet ixs a
-zipWithIxSet f Nil        Nil        = Nil
+zipWithIxSet _ Nil        Nil        = Nil
 zipWithIxSet f (x ::: xs) (y ::: ys) = f x y ::: zipWithIxSet f xs ys
+zipWithIxSet _ _          _          = error "Data.IxSet.Typed.zipWithIxSet: impossible"
 
 class Ord ix => IsIndexOf (ix :: *) (ixs :: [*]) where
   access :: IxSet ixs a -> Ix ix a
@@ -220,11 +215,11 @@ class Ord ix => IsIndexOf (ix :: *) (ixs :: [*]) where
         -> IxSet ixs a -> IxSet ixs a
 
 instance Ord ix => IsIndexOf ix (ix ': ixs) where
-  access (x ::: xs) = x
+  access (x ::: _xs)     = x
   mapAt fh ft (x ::: xs) = fh x ::: mapIxSet ft xs
 
 instance IsIndexOf ix ixs => IsIndexOf ix (ix' ': ixs) where
-  access (x ::: xs)      = access xs
+  access (_x ::: xs)     = access xs
   mapAt fh ft (x ::: xs) = ft x ::: mapAt fh ft xs
 
 -- | Create an 'IxSet' using a list of indexes. Useful in the 'Indexable'
@@ -275,12 +270,15 @@ ixFun = Ix Map.empty
 ixGen :: forall a ix. (Ord ix, Data a, Typeable ix) => Proxy ix -> Ix ix a
 ixGen _proxy = ixFun (flatten :: a -> [ix])
 
+{-
 showTypeOf :: (Typeable a) => a -> String
 showTypeOf x = showsPrec 11 (typeOf x) []
+-}
 
 instance Indexable ixs a => Eq (IxSet ixs a) where
   Ix a _ ::: _ == Ix b _ ::: _ = a == b
   Nil          == Nil          = True
+  _            == _            = error "Data.IxSet.Typed.(==): impossible"
 -- TODO: original ixset disallows an IxSet without an index;
 -- should we do the same?
 
@@ -385,24 +383,19 @@ inferIxSet ixset typeName calName entryPoints
              names = map tyVarBndrToName binders
 
              typeCon = List.foldl' appT (conT typeName) (map varT names)
-#if MIN_VERSION_template_haskell(2,4,0)
              mkCtx = classP
-#else
-             -- mkType :: Name -> [TypeQ] -> TypeQ
-             mkType con = foldl appT (conT con)
-
-             mkCtx = mkType
-#endif
              dataCtxConQ = concat [[mkCtx ''Data [varT name], mkCtx ''Ord [varT name]] | name <- names]
              fullContext = do
                 dataCtxCon <- sequence dataCtxConQ
                 return (context ++ dataCtxCon)
          case calInfo of
-           VarI _ t _ _ ->
-               let calType = getCalType t
+           VarI _ _t _ _ ->
+               let {-
+                   calType = getCalType t
                    getCalType (ForallT _names _ t') = getCalType t'
                    getCalType (AppT (AppT ArrowT _) t') = t'
                    getCalType t' = error ("Unexpected type in getCalType: " ++ pprint t')
+                   -}
                    mkEntryPoint n = (conE 'Ix) `appE`
                                     (sigE (varE 'Map.empty) (forallT binders (return context) $
                                                              appT (appT (conT ''Map) (conT n))
@@ -420,29 +413,9 @@ inferIxSet ixset typeName calName entryPoints
                      return $ [i, ixType']  -- ++ d
            _ -> error "IxSet.inferIxSet calInfo unexpected match"
 
--- | Version of 'instanceD' that takes in a Q [Dec] instead of a [Q Dec]
--- and filters out signatures from the list of declarations.
-instanceD' :: CxtQ -> TypeQ -> Q [Dec] -> DecQ
-instanceD' ctxt ty decs =
-    do decs' <- decs
-       let decs'' = filter (not . isSigD) decs'
-       instanceD ctxt ty (map return decs'')
-
--- | Returns true if the Dec matches a SigD constructor.
-isSigD :: Dec -> Bool
-isSigD (SigD _ _) = True
-isSigD _ = False
-
-#if MIN_VERSION_template_haskell(2,4,0)
 tyVarBndrToName :: TyVarBndr -> Name
 tyVarBndrToName (PlainTV nm) = nm
 tyVarBndrToName (KindedTV nm _) = nm
-#else
-tyVarBndrToName :: a -> a
-tyVarBndrToName = id
-#endif
-
-
 
 -- modification operations
 
@@ -518,7 +491,7 @@ insertMapOfSets originalindex indexes = mapAt updateh updatet indexes
     xs = concatMap Set.toList (Map.elems originalindex)
 
     updateh :: Ix ix a -> Ix ix a
-    updateh (Ix index f) = Ix index' f
+    updateh (Ix _index f) = Ix index' f
       where
         dss :: [(ix, a)]
         dss = [(k, x) | x <- xs, k <- f x]

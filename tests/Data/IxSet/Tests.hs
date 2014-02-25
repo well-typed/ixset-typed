@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable, TemplateHaskell, OverlappingInstances, UndecidableInstances, TemplateHaskell, DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -fdefer-type-errors #-}
 
 -- Check that the SYBWC Data instance for IxSet works, by testing
 -- that going to and from XML works.
@@ -130,6 +131,9 @@ ixSetCheckSetMethods = "ixSetCheckSetMethods" ~: test
      3 @=? length (toList foox_set_abc)
    ]
 
+testl :: [Int]
+testl = [1, True]
+
 isError :: a -> IO Bool
 isError x = (x `seq` return False) `E.catch` \(ErrorCall _) -> return True
 
@@ -138,8 +142,8 @@ badIndexSafeguard = "badIndexSafeguard" ~: test
                     [ "check if there is error when no first index on value" ~:
                       isError (size (insert (BadlyIndexed 123) empty :: BadlyIndexeds)) -- TODO: type sig now necessary
 -- TODO / GOOD: this is a type error now
---                    , "check if indexing with missing index" ~:
---                      isError (getOne (foox_set_cde @= True))
+                    , "check if indexing with missing index" ~:
+                      isError (getOne (foox_set_cde @= True)) -- TODO: should check it's a type error
                     ]
 
 testTriple :: Test
