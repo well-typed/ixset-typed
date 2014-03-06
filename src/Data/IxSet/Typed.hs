@@ -12,7 +12,7 @@ An efficient implementation of queryable sets.
 Assume you have a type like:
 
 > data Entry = Entry Author [Author] Updated Id Content
-> newtype Updated = Updated EpochTime
+> newtype Updated = Updated UTCTime
 > newtype Id = Id Int64
 > newtype Content = Content String
 > newtype Author = Author Email
