@@ -86,7 +86,7 @@ $(inferIxSet "Foos" ''Foo 'fooCalcs [''String, ''Int])
 
 
 instance Indexable '[Int] S where
-    empty =  ixSet (ixFun (\(S x) -> [length x]))
+    empty = ixSet Set.empty (ixFun (\(S x) -> [length x]))
     -- calcs _ = ()
 
 ixSetCheckMethodsOnDefault :: Test

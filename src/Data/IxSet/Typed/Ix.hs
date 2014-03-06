@@ -13,6 +13,7 @@ module Data.IxSet.Typed.Ix
     ( Ix(..)
     , insert
     , delete
+    , fromList
     , insertList
     , deleteList
     , union
@@ -22,7 +23,7 @@ module Data.IxSet.Typed.Ix
 
 import           Data.Generics hiding (GT)
 import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
-import           Data.List  (foldl')
+import qualified Data.List  as List
 import           Data.Map   (Map)
 import qualified Data.Map   as Map
 import           Data.Set   (Set)
@@ -76,7 +77,12 @@ insert k v index = Map.insertWith' Set.union k (Set.singleton v) index
 -- | Helper function to 'insert' a list of elements into a set.
 insertList :: (Ord a, Ord k)
            => [(k,a)] -> Map k (Set a) -> Map k (Set a)
-insertList xs index = foldl' (\m (k,v)-> insert k v m) index xs
+insertList xs index = List.foldl' (\m (k,v)-> insert k v m) index xs
+
+-- | Helper function to create a new index from a list.
+fromList :: (Ord a, Ord k) => [(k, a)] -> Map k (Set a)
+fromList xs =
+  Map.fromListWith Set.union (List.map (\ (k, v) -> (k, Set.singleton v)) xs)
 
 -- | Convenience function for deleting from 'Map's of 'Set's. If the
 -- resulting 'Set' is empty, then the entry is removed from the 'Map'.
@@ -90,7 +96,7 @@ delete k v index = Map.update remove k index
 -- | Helper function to 'delete' a list of elements from a set.
 deleteList :: (Ord a, Ord k)
            => [(k,a)] -> Map k (Set a) -> Map k (Set a)
-deleteList xs index = foldl' (\m (k,v) -> delete k v m) index xs
+deleteList xs index = List.foldl' (\m (k,v) -> delete k v m) index xs
 
 -- | Takes the union of two sets.
 union :: (Ord a, Ord k)
