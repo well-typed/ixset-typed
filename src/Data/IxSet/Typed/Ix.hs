@@ -6,7 +6,7 @@
 {- |
 
 This module defines 'Typeable' indexes and convenience functions. Should
-probably be considered private to "Data.IxSet".
+probably be considered private to @Data.IxSet.Typed@.
 
 -}
 module Data.IxSet.Typed.Ix
@@ -21,8 +21,8 @@ module Data.IxSet.Typed.Ix
     )
     where
 
-import           Data.Generics hiding (GT)
-import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
+-- import           Data.Generics hiding (GT)
+-- import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
 import qualified Data.List  as List
 import           Data.Map   (Map)
 import qualified Data.Map   as Map
@@ -46,15 +46,19 @@ instance Data a => Data (Ix a) where
     dataTypeOf _    = ixType_Data
 -}
 
+{-
 con_Ix_Data :: Constr
 con_Ix_Data = mkConstr ixType_Data "Ix" [] Prefix
 ixType_Data :: DataType
 ixType_Data = mkDataType "Happstack.Data.IxSet.Ix" [con_Ix_Data]
+-}
 
+{-
 ixConstr :: SYBWC.Constr
 ixConstr = SYBWC.mkConstr ixDataType "Ix" [] SYBWC.Prefix
 ixDataType :: SYBWC.DataType
 ixDataType = SYBWC.mkDataType "Ix" [ixConstr]
+-}
 
 {-
 instance (SYBWC.Data ctx a, SYBWC.Sat (ctx (Ix a)))

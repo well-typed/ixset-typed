@@ -18,10 +18,10 @@ Library
   else
     Build-Depends:     base < 4
 
-  if impl(ghc >= 6.12.1)
-    Build-Depends:    syb-with-class >= 0.6.1
-  else
-    Build-Depends:    syb-with-class < 0.6.1
+  -- if impl(ghc >= 6.12.1)
+  --   Build-Depends:    syb-with-class >= 0.6.1
+  -- else
+  --   Build-Depends:    syb-with-class < 0.6.1
 
 
   Build-Depends:       containers,
