@@ -94,6 +94,7 @@ module Data.IxSet.Typed
      noCalcs,
      inferIxSet,
      ixSet,
+     mkEmpty,
      ixFun,
      ixGen,
 
@@ -256,6 +257,9 @@ instance IsIndexOf ix ixs => IsIndexOf ix (ix' ': ixs) where
 -- list, or you'll get a runtime error.
 ixSet :: MkIxSet ixs ixs a r => Set a -> r
 ixSet s = ixSet' (IxSet s)
+
+mkEmpty :: MkIxSet ixs ixs a r => r
+mkEmpty = ixSet Set.empty
 
 class MkIxSet ixs ixs' a r | r -> a ixs ixs' where
   ixSet' :: (IxList ixs a -> IxSet ixs' a) -> r
@@ -420,7 +424,7 @@ inferIxSet ixset typeName calName entryPoints
                    typeList = mkTypeList (map conT entryPoints)
                in do i <- instanceD (fullContext)
                           (conT ''Indexable `appT` typeList `appT` typeCon)
-                          [valD (varP 'empty) (normalB (appsE ([| ixSet Set.empty |] : map mkEntryPoint entryPoints))) []]
+                          [valD (varP 'empty) (normalB (appsE ([| mkEmpty |] : map mkEntryPoint entryPoints))) []]
                      let ixType = conT ''IxSet `appT` typeList `appT` typeCon
                      ixType' <- tySynD (mkName ixset) binders ixType
                      return $ [i, ixType']  -- ++ d
