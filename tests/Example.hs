@@ -43,7 +43,7 @@ t3 = UTCTime (fromGregorian 1909 09 09) 0
 
 entries3 = entries @= Author "john@doe.com" @< Updated t1
 
-newtype Word = Word String                            deriving (Show)
+newtype Word = Word String                            deriving (Show, Eq, Ord)
 newtype FirstAuthor = FirstAuthor Email               deriving (Show, Eq, Ord)
 
 getWords (Entry _ _ _ _ (Content s)) = map Word $ words s
