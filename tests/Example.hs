@@ -16,7 +16,10 @@ type Email = String
 
 data Test = Test                                      deriving (Show, Eq, Ord, Data, Typeable)
 
-instance Indexable Ixs Entry where
+type EntryIxs = '[Author, Id, Updated, Test, Word, FirstAuthor]
+type IxEntry  = IxSet EntryIxs Entry
+
+instance Indexable EntryIxs Entry where
   empty = mkEmpty
             (ixGen (Proxy :: Proxy Author))        -- out of order
             (ixGen (Proxy :: Proxy Id))
@@ -25,14 +28,11 @@ instance Indexable Ixs Entry where
             (ixFun getWords)
             (ixFun getFirstAuthor)
 
-type Ixs = '[Author, Id, Updated, Test, Word, FirstAuthor]
-type IxEntry = IxSet Ixs Entry
-
 entries  = insertList [e1, e2, e3, e4] (empty :: IxEntry)
 entries1 = foldr delete entries [e1,e3]
 entries2 = updateIx (Id 4) e5 entries
 
-e1 = Entry (Author "abc@def.ghi") [] (Updated t1) (Id 1) (Content "word1 word2")
+e1 = Entry (Author "abc@def.ghi")  [] (Updated t1) (Id 1) (Content "word1 word2")
 e2 = Entry (Author "john@doe.com") [] (Updated t2) (Id 2) (Content "word2 word3")
 e3 = Entry (Author "john@doe.com") [Author "abc@def.ghi"] (Updated t2) (Id 3) (Content "word1 word2 word3")
 e4 = Entry (Author "abc@def.com") [Author "john@doe.com"] (Updated t3) (Id 4) (Content "word3")
@@ -43,8 +43,8 @@ t3 = UTCTime (fromGregorian 1909 09 09) 0
 
 entries3 = entries @= Author "john@doe.com" @< Updated t1
 
-newtype Word = Word String                            deriving (Show, Eq, Ord, Data, Typeable)
-newtype FirstAuthor = FirstAuthor Email               deriving (Show, Eq, Ord, Data, Typeable)
+newtype Word = Word String                            deriving (Show)
+newtype FirstAuthor = FirstAuthor Email               deriving (Show, Eq, Ord)
 
 getWords (Entry _ _ _ _ (Content s)) = map Word $ words s
 getFirstAuthor (Entry (Author author) _ _ _ _) = [FirstAuthor author]

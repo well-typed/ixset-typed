@@ -9,36 +9,50 @@
 {- |
 An efficient implementation of queryable sets.
 
-Assume you have a type like:
+Assume you have a family of types such as:
 
-> data Entry = Entry Author [Author] Updated Id Content
+> data Entry      = Entry Author [Author] Updated Id Content
+>   deriving (Show, Eq, Ord, Data, Typeable)
 > newtype Updated = Updated UTCTime
-> newtype Id = Id Int64
+>   deriving (Show, Eq, Ord, Data, Typeable)
+> newtype Id      = Id Int64
+>   deriving (Show, Eq, Ord, Data, Typeable)
 > newtype Content = Content String
-> newtype Author = Author Email
-> type Email = String
+>   deriving (Show, Eq, Ord, Data, Typeable)
+> newtype Author  = Author Email
+>   deriving (Show, Eq, Ord, Data, Typeable)
+> type Email      = String
+> data Test = Test
+>   deriving (Show, Eq, Ord, Data, Typeable)
 
 1. Decide what parts of your type you want indexed and make your type
 an instance of 'Indexable'. Use 'ixFun' and 'ixGen' to build indexes:
 
-> instance Indexable Entry where
->     empty = ixSet
->               [ ixGen (Proxy :: Proxy Author)        -- out of order
->               , ixGen (Proxy :: Proxy Id)
->               , ixGen (Proxy :: Proxy Updated)
->               , ixGen (Proxy :: Proxy Test)          -- bogus index
->               ]
+> type EntryIxs = '[Author, Id, Updated, Test]
+> type IxEntry  = IxSet EntryIxs Entry
+>
+> instance Indexable EntryIxs Entry where
+>   empty = mkEmpty
+>             (ixGen (Proxy :: Proxy Author))        -- out of order
+>             (ixGen (Proxy :: Proxy Id))
+>             (ixGen (Proxy :: Proxy Updated))
+>             (ixGen (Proxy :: Proxy Test))          -- bogus index
 
-3. Use 'insert', 'delete', 'updateIx', 'deleteIx' and 'empty' to build
-   up an 'IxSet' collection:
+The use of 'ixGen' requires the 'Data' and 'Typeable' instances above.
+You can build indexes manually using 'ixFun'. You can also use the
+Template Haskell function 'inferIxSet' to generate an 'Indexable'
+instance automatically.
 
-> entries = foldr insert empty [e1,e2,e3,e4]
-> entries' = foldr delete entries [e1,e3]
-> entries'' = update e4 e5 entries
+3. Use 'insert', 'insertList', 'delete', 'updateIx', 'deleteIx'
+and 'empty' to build up an 'IxSet' collection:
+
+> entries  = insertList [e1, e2, e3, e4] (empty :: IxEntry)
+> entries1 = foldr delete entries [e1, e3]
+> entries2 = updateIx (Id 4) e5 entries
 
 4. Use the query functions below to grab data from it:
 
-> entries @= (Author "john@doe.com") @< (Updated t1)
+> entries @= Author "john@doe.com" @< Updated t1
 
 Statement above will find all items in entries updated earlier than
 @t1@ by @john\@doe.com@.
@@ -49,12 +63,16 @@ If you want to do add a text index create a calculated index.  Then if you want
 all entries with either @word1@ or @word2@, you change the instance
 to:
 
+> newtype Word = Word String
+>   deriving (Show, Eq, Ord)
+>
 > getWords (Entry _ _ _ _ (Content s)) = map Word $ words s
 >
-> instance Indexable Entry where
->     empty = ixSet [ ...
->                     ixFun getWords
->                   ]
+> type EntryIxs = '[..., Word]
+> instance Indexable EntryIxs Entry where
+>     empty = mkEmpty
+>               ...
+>               (ixFun getWords)
 
 Now you can do this query to find entries with any of the words:
 
@@ -71,21 +89,21 @@ the first author only, define a @FirstAuthor@ datatype and create an
 index with this type.  Now you can do:
 
 > newtype FirstAuthor = FirstAuthor Email
+>   deriving (Show, Eq, Ord)
 >
 > getFirstAuthor (Entry author _ _ _ _) = [FirstAuthor author]
 >
+> type EntryIxs = '[..., FirstAuthor]
 > instance Indexable Entry where
->     ...
->     empty = ixSet [ ...
->                     ixFun getFirstAuthor
->                   ]
->
->     entries @= (FirstAuthor "john@doe.com")  -- guess what this does
+>     empty = mkEmpty
+>               ...
+>               (ixFun getFirstAuthor)
+
+> entries @= (FirstAuthor "john@doe.com")  -- guess what this does
 
 -}
 
 module Data.IxSet.Typed
-{-
     (
      -- * Set type
      IxSet,
@@ -102,6 +120,7 @@ module Data.IxSet.Typed
      IndexOp,
      change,
      insert,
+     insertList,
      delete,
      updateIx,
      deleteIx,
@@ -155,9 +174,8 @@ module Data.IxSet.Typed
      flattenWithCalcs,
 
      -- * Debugging and optimization
-     -- stats
+     stats
 )
--}
 where
 
 import Prelude hiding (null)
@@ -175,7 +193,7 @@ import           Data.Monoid    (Monoid(mempty, mappend))
 import           Data.SafeCopy  (SafeCopy(..), contain, safeGet, safePut)
 import           Data.Set       (Set)
 import qualified Data.Set       as Set
-import           Data.Typeable  (Typeable, cast, typeOf)
+import           Data.Typeable  (Typeable, cast {- , typeOf -})
 import Language.Haskell.TH      as TH
 import GHC.Exts (Constraint)
 
