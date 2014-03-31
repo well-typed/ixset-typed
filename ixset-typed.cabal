@@ -1,13 +1,13 @@
 name:                ixset-typed
-version:             0.1.0.0
+version:             0.1.0.1
 synopsis:            Efficient relational queries on Haskell sets.
 description:
     Create and query sets that are indexed by multiple indices.
-
+    .
     This is a variant of the ixset package that tracks the index
     information via the type system. It should be safer to use than
     ixset, but also requires more GHC extensions.
-
+    .
     The two packages are currently relatively compatible. Switching
     from one to the other requires a little bit of manual work, but
     not very much.
@@ -23,11 +23,11 @@ source-repository head
   location:          https://github.com/kosmikus/ixset-typed.git
 
 library
-  build-depends:     base >= 4 && < 5,
+  build-depends:     base >= 4.6 && < 5,
                      syb >= 0.4 && < 1,
                      containers >= 0.5 && < 1,
                      safecopy >= 0.8 && < 1,
-                     template-haskell >= 2.4
+                     template-haskell >= 2.8 && < 3
 
   hs-source-dirs:    src
   exposed-modules:
