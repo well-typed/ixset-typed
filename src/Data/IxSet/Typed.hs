@@ -108,7 +108,6 @@ module Data.IxSet.Typed
      -- * Set type
      IxSet,
      Indexable(..),
-     Proxy(..),
      noCalcs,
      inferIxSet,
      ixSet,
@@ -197,11 +196,6 @@ import           Data.Typeable  (Typeable, cast {- , typeOf -})
 import Language.Haskell.TH      as TH
 import GHC.Exts (Constraint)
 
-
--------------------------------------------------
--- Type proxies
-
-data Proxy a = Proxy
 
 -- the core datatypes
 
@@ -310,7 +304,7 @@ ixFun = Ix Map.empty
 --
 -- In production systems consider using 'ixFun' in place of 'ixGen' as
 -- the former one is much faster.
-ixGen :: forall a ix. (Ord ix, Data a, Typeable ix) => Proxy ix -> Ix ix a
+ixGen :: forall proxy a ix. (Ord ix, Data a, Typeable ix) => proxy ix -> Ix ix a
 ixGen _proxy = ixFun (flatten :: a -> [ix])
 
 {-
@@ -616,7 +610,7 @@ toList = Set.toList . toSet
 -- List will be sorted in ascending order by the index 'ix'.
 --
 -- The list may contain duplicate entries if a single value produces multiple keys.
-toAscList :: forall ix ixs a. IsIndexOf ix ixs => Proxy ix -> IxSet ixs a -> [a]
+toAscList :: forall proxy ix ixs a. IsIndexOf ix ixs => proxy ix -> IxSet ixs a -> [a]
 toAscList _ ixset = concatMap snd (groupAscBy ixset :: [(ix, [a])])
 
 -- | Converts an 'IxSet' to its list of elements.
@@ -624,7 +618,7 @@ toAscList _ ixset = concatMap snd (groupAscBy ixset :: [(ix, [a])])
 -- List will be sorted in descending order by the index 'ix'.
 --
 -- The list may contain duplicate entries if a single value produces multiple keys.
-toDescList :: forall ix ixs a. IsIndexOf ix ixs => Proxy ix -> IxSet ixs a -> [a]
+toDescList :: forall proxy ix ixs a. IsIndexOf ix ixs => proxy ix -> IxSet ixs a -> [a]
 toDescList _ ixset = concatMap snd (groupDescBy ixset :: [(ix, [a])])
 
 -- | If the 'IxSet' is a singleton it will return the one item stored in it.

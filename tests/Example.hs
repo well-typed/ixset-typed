@@ -3,6 +3,7 @@ import Data.IxSet.Typed
 import Data.Time
 import Data.Int
 import Data.Data
+import Data.Proxy
 import Data.Typeable
 
 -- Example from the documentation
