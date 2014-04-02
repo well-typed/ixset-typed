@@ -94,7 +94,7 @@ index with this type.  Now you can do:
 > getFirstAuthor (Entry author _ _ _ _) = [FirstAuthor author]
 >
 > type EntryIxs = '[..., FirstAuthor]
-> instance Indexable Entry where
+> instance Indexable EntryIxs Entry where
 >     empty = mkEmpty
 >               ...
 >               (ixFun getFirstAuthor)
@@ -108,6 +108,7 @@ module Data.IxSet.Typed
      -- * Set type
      IxSet,
      Indexable(..),
+     All,
      noCalcs,
      inferIxSet,
      ixSet,
@@ -117,6 +118,7 @@ module Data.IxSet.Typed
 
      -- * Changes to set
      IndexOp,
+     SetOp,
      change,
      insert,
      insertList,
@@ -173,10 +175,7 @@ module Data.IxSet.Typed
      flattenWithCalcs,
 
      -- * Debugging and optimization
-     stats,
-
-     -- * Type-level utilities
-     All
+     stats
 )
 where
 
@@ -202,7 +201,10 @@ import GHC.Exts (Constraint)
 
 -- the core datatypes
 
--- | Set with associated indexes.
+-- | Set with associated indices.
+--
+-- The type-level list 'ixs' contains all types that are valid index keys.
+-- The type 'a' is the type of elements in the indexed set.
 data IxSet (ixs :: [*]) (a :: *) where
   IxSet :: Set a -> IxList ixs a -> IxSet ixs a
 
@@ -215,6 +217,17 @@ data IxList (ixs :: [*]) (a :: *) where
 
 infixr 5 :::
 
+-- | The constraint @All c xs@ says the @c@ has to hold for all
+-- elements in the type-level list @xs@.
+--
+-- Example:
+--
+-- > All Ord '[Int, Char, Bool]
+--
+-- is equivalent to
+--
+-- > (Ord Int, Ord Char, Ord Bool)
+--
 type family All (c :: * -> Constraint) (xs :: [*]) :: Constraint
 type instance All c '[]       = ()
 type instance All c (x ': xs) = (c x, All c xs)
@@ -259,20 +272,25 @@ instance IsIndexOf ix ixs => IsIndexOf ix (ix' ': ixs) where
   access (_x ::: xs)     = access xs
   mapAt fh ft (x ::: xs) = ft x ::: mapAt fh ft xs
 
--- | Create an 'IxSet' using a list of indexes. Useful in the 'Indexable'
--- 'empty' method. Use 'ixFun' and 'ixGen' as list elements.
+-- | Create an 'IxSet' using a set and a number of indexes. If you want to
+-- use this in the 'Indexable' 'empty' method, better use 'mkEmpty' instead.
 --
--- > instance Indexable Type where
--- >     empty = ixSet [ ...
--- >                     ixFun getIndex1
--- >                     ixGen (Proxy :: Proxy Index2Type)
--- >                   ]
+-- Note that this function takes a variable number of arguments.
 --
--- Every value in the 'IxSet' must be reachable by the first index in this
--- list, or you'll get a runtime error.
 ixSet :: MkIxSet ixs ixs a r => Set a -> r
 ixSet s = ixSet' (IxSet s)
 
+-- | Create an empty 'IxSet' using a number of indexes. Useful in the 'Indexable'
+-- 'empty' method. Use 'ixFun' and 'ixGen' for the individual indexes.
+--
+-- Note that this function takes a variable number of arguments.
+--
+-- > instance Indexable '[..., Index1Type, Index2Type] Type where
+-- >     empty = mkEmpty
+-- >                 ...
+-- >                 (ixFun getIndex1)
+-- >                 (ixGen (Proxy :: Proxy Index2Type))
+--
 mkEmpty :: MkIxSet ixs ixs a r => r
 mkEmpty = ixSet Set.empty
 
@@ -288,12 +306,14 @@ instance MkIxSet ixs ixs' a r => MkIxSet (ix ': ixs) ixs' a (Ix ix a -> r) where
 -- | Create a functional index. Provided function should return a list
 -- of indexes where the value should be found.
 --
+-- > getIndexes :: Type -> [IndexType]
 -- > getIndexes value = [...indexes...]
 --
--- > instance Indexable Type where
--- >     empty = ixSet [ ixFun getIndexes ]
+-- > instance Indexable '[IndexType] Type where
+-- >     empty = mkEmpty (ixFun getIndexes)
 --
 -- This is the recommended way to create indexes.
+--
 ixFun :: Ord ix => (a -> [ix]) -> Ix ix a
 ixFun = Ix Map.empty
 
@@ -307,6 +327,7 @@ ixFun = Ix Map.empty
 --
 -- In production systems consider using 'ixFun' in place of 'ixGen' as
 -- the former one is much faster.
+--
 ixGen :: forall proxy a ix. (Ord ix, Data a, Typeable ix) => proxy ix -> Ix ix a
 ixGen _proxy = ixFun (flatten :: a -> [ix])
 
@@ -377,30 +398,26 @@ class (All Ord ixs, Ord a) => Indexable ixs a where
 noCalcs :: t -> ()
 noCalcs _ = ()
 
-{- | Template Haskell helper function for automatically building an
-'Indexable' instance from a data type, e.g.
-
-> data Foo = Foo Int String
-
-and
-
-> $(inferIxSet "FooDB" ''Foo 'noCalcs [''Int,''String])
-
-will build a type synonym
-
-> type FooDB = IxSet Foo
-
-with @Int@ and @String@ as indexes.
-
-/WARNING/: The type specified as the first index must be a type which
-appears in all values in the 'IxSet' or 'toList', 'toSet' and
-serialization will not function properly.  You will be warned not to do
-this with a runtime error.  You can always use the element type
-itself. For example:
-
-> $(inferIxSet "FooDB" ''Foo 'noCalcs [''Foo, ''Int, ''String])
-
--}
+-- | Template Haskell helper function for automatically building an
+-- 'Indexable' instance from a data type, e.g.
+--
+-- > data Foo = Foo Int String
+--
+-- and
+--
+-- > $(inferIxSet "FooDB" ''Foo 'noCalcs [''Int,''String])
+--
+-- will build a type synonym
+--
+-- > type FooDB = IxSet '[Int, String] Foo
+--
+-- with @Int@ and @String@ as indexes.
+--
+-- /WARNING/: This function uses 'flattenWithCalcs' for index generation,
+-- which in turn uses an SYB type-based traversal. It is often more efficient
+-- (and sometimes more correct) to explicitly define the indices using
+-- 'ixFun'.
+--
 inferIxSet :: String -> TH.Name -> TH.Name -> [TH.Name] -> Q [Dec]
 inferIxSet _ _ _ [] = error "inferIxSet needs at least one index"
 inferIxSet ixset typeName calName entryPoints
@@ -569,18 +586,18 @@ insert = change Set.insert Ix.insert
 delete :: Indexable ixs a => a -> IxSet ixs a -> IxSet ixs a
 delete = change Set.delete Ix.delete
 
--- | Will replace the item with index k.  Only works if there is at
--- most one item with that index in the 'IxSet'. Will not change
--- 'IxSet' if you have more then 1 item with given index.
+-- | Will replace the item with the given index of type 'ix'.
+-- Only works if there is at most one item with that index in the 'IxSet'.
+-- Will not change 'IxSet' if you have more than one item with given index.
 updateIx :: (Indexable ixs a, IsIndexOf ix ixs, Ord ix)
          => ix -> a -> IxSet ixs a -> IxSet ixs a
 updateIx i new ixset = insert new $
                      maybe ixset (flip delete ixset) $
                      getOne $ ixset @= i
 
--- | Will delete the item with index k.  Only works if there is at
--- most one item with that index in the 'IxSet'. Will not change
--- 'IxSet' if you have more then 1 item with given index.
+-- | Will delete the item with the given index of type 'ix'.
+-- Only works if there is at  most one item with that index in the 'IxSet'.
+-- Will not change 'IxSet' if you have more than one item with given index.
 deleteIx :: (Indexable ixs a, IsIndexOf ix ixs, Ord ix)
          => ix -> IxSet ixs a -> IxSet ixs a
 deleteIx i ixset = maybe ixset (flip delete ixset) $
