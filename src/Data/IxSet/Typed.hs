@@ -106,15 +106,19 @@ index with this type.  Now you can do:
 module Data.IxSet.Typed
     (
      -- * Set type
-     IxSet,
+     IxSet(),
      Indexable(..),
      All,
-     noCalcs,
-     inferIxSet,
+     -- ** Declaring indices
+     Ix(),
      ixSet,
      mkEmpty,
+     MkIxSet(),
      ixFun,
      ixGen,
+     -- ** TH derivation of indices
+     noCalcs,
+     inferIxSet,
 
      -- * Changes to set
      IndexOp,
@@ -276,6 +280,12 @@ instance IsIndexOf ix ixs => IsIndexOf ix (ix' ': ixs) where
 -- use this in the 'Indexable' 'empty' method, better use 'mkEmpty' instead.
 --
 -- Note that this function takes a variable number of arguments.
+-- Here are some example types at which the function can be used:
+--
+-- > ixSet :: Set a -> Ix ix1 a -> IxSet '[ix1] a
+-- > ixSet :: Set a -> Ix ix1 a -> Ix ix2 a -> IxSet '[ix1, ix2] a
+-- > ixSet :: Set a -> Ix ix1 a -> Ix ix2 a -> Ix ix3 a -> IxSet '[ix1, ix2, ix3] a
+-- > ixSet :: ...
 --
 ixSet :: MkIxSet ixs ixs a r => Set a -> r
 ixSet s = ixSet' (IxSet s)
@@ -284,6 +294,14 @@ ixSet s = ixSet' (IxSet s)
 -- 'empty' method. Use 'ixFun' and 'ixGen' for the individual indexes.
 --
 -- Note that this function takes a variable number of arguments.
+-- Here are some example types at which the function can be used:
+--
+-- > mkEmpty :: Ix ix1 a -> IxSet '[ix1] a
+-- > mkEmpty :: Ix ix1 a -> Ix ix2 a -> IxSet '[ix1, ix2] a
+-- > mkEmpty :: Ix ix1 a -> Ix ix2 a -> Ix ix3 a -> IxSet '[ix1, ix2, ix3] a
+-- > mkEmpty :: ...
+--
+-- Concrete example use:
 --
 -- > instance Indexable '[..., Index1Type, Index2Type] Type where
 -- >     empty = mkEmpty
@@ -294,6 +312,9 @@ ixSet s = ixSet' (IxSet s)
 mkEmpty :: MkIxSet ixs ixs a r => r
 mkEmpty = ixSet Set.empty
 
+-- | Class that allows a variable number of arguments to be passed to the
+-- 'ixSet' and 'mkEmpty' functions. See the documentation of these functions
+-- for more information.
 class MkIxSet ixs ixs' a r | r -> a ixs ixs' where
   ixSet' :: (IxList ixs a -> IxSet ixs' a) -> r
 
