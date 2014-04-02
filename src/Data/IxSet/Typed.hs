@@ -346,8 +346,8 @@ ixFun = Ix Map.empty
 -- so you may use a 'Proxy'. This uses flatten to traverse values using
 -- their 'Data' instances.
 --
--- > instance Indexable Type where
--- >     empty = ixSet [ ixGen (Proxy :: Proxy Type) ]
+-- > instance Indexable '[IndexType] Type where
+-- >     empty = mkEmpty (ixGen (Proxy :: Proxy Type))
 --
 -- In production systems consider using 'ixFun' in place of 'ixGen' as
 -- the former one is much faster.
