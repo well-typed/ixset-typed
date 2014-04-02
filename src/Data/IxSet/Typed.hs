@@ -173,7 +173,10 @@ module Data.IxSet.Typed
      flattenWithCalcs,
 
      -- * Debugging and optimization
-     stats
+     stats,
+
+     -- * Type-level utilities
+     All
 )
 where
 
