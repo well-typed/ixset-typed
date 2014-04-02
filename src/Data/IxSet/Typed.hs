@@ -108,6 +108,7 @@ module Data.IxSet.Typed
      -- * Set type
      IxSet(),
      Indexable(..),
+     IsIndexOf(),
      All,
      -- ** Declaring indices
      Ix(),
@@ -261,6 +262,8 @@ zipWithIxList _ Nil        Nil        = Nil
 zipWithIxList f (x ::: xs) (y ::: ys) = f x y ::: zipWithIxList f xs ys
 zipWithIxList _ _          _          = error "Data.IxSet.Typed.zipWithIxList: impossible"
 
+-- Constraint for membership in the type-level list. Says that 'ix'
+-- is contained in the index list 'ixs'.
 class Ord ix => IsIndexOf (ix :: *) (ixs :: [*]) where
   access :: IxList ixs a -> Ix ix a
   mapAt :: (All Ord ixs)
