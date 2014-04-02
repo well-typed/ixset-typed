@@ -2,15 +2,22 @@ name:                ixset-typed
 version:             0.1.3
 synopsis:            Efficient relational queries on Haskell sets.
 description:
-    Create and query sets that are indexed by multiple indices.
+    This Haskell package provides a data structure of sets that are indexed
+    by potentially multiple indices.
     .
-    This is a variant of the ixset package that tracks the index
-    information via the type system. It should be safer to use than
-    ixset, but also requires more GHC extensions.
+    Sets can be created, modified, and queried in various ways.
     .
-    The two packages are currently relatively compatible. Switching
-    from one to the other requires a little bit of manual work, but
-    not very much.
+    The package is a variant of the ixset package. The ixset package makes use
+    of run-time type information to find a suitable index on a query, resulting
+    in possible run-time errors when no suitable index exists. In ixset-typed,
+    the types of all indices available or tracked in the type system.
+    .
+    Thus, ixset-typed should be safer to use than ixset, but in turn requires
+    more GHC extensions.
+    .
+    At the moment, the two packages are relatively compatible. As a consequence
+    of the more precise types, a few manual tweaks are necessary when switching
+    from one to the other, but the interface is mostly the same.
 license:             BSD3
 author:              Andres Löh, Happstack team, HAppS LLC
 maintainer:          Andres Löh <andres@well-typed.com>
