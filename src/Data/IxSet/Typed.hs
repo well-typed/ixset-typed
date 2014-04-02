@@ -613,7 +613,7 @@ delete = change Set.delete Ix.delete
 -- | Will replace the item with the given index of type 'ix'.
 -- Only works if there is at most one item with that index in the 'IxSet'.
 -- Will not change 'IxSet' if you have more than one item with given index.
-updateIx :: (Indexable ixs a, IsIndexOf ix ixs, Ord ix)
+updateIx :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> a -> IxSet ixs a -> IxSet ixs a
 updateIx i new ixset = insert new $
                      maybe ixset (flip delete ixset) $
@@ -622,7 +622,7 @@ updateIx i new ixset = insert new $
 -- | Will delete the item with the given index of type 'ix'.
 -- Only works if there is at  most one item with that index in the 'IxSet'.
 -- Will not change 'IxSet' if you have more than one item with given index.
-deleteIx :: (Indexable ixs a, IsIndexOf ix ixs, Ord ix)
+deleteIx :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> IxSet ixs a -> IxSet ixs a
 deleteIx i ixset = maybe ixset (flip delete ixset) $
                        getOne $ ixset @= i
