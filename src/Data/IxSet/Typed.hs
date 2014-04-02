@@ -413,7 +413,7 @@ instance (Indexable ixs a, Read a) => Read (IxSet ixs a) where
 -- | Defines objects that can be members of 'IxSet'.
 class (All Ord ixs, Ord a) => Indexable ixs a where
   -- | Defines what an empty 'IxSet' for this particular type should look
-  -- like.  It should have all necessary indexes. Use the 'ixSet'
+  -- like.  It should have all necessary indexes. Use the 'mkEmpty'
   -- function to create the set and fill it in with 'ixFun' and 'ixGen'.
   empty :: IxSet ixs a
 
@@ -540,7 +540,6 @@ change opS opI x (IxSet a indexes) = IxSet (opS x a) v
         ii m dkey = opI dkey x m
         index' :: Map ix (Set a)
         index' = List.foldl' ii index ds
--- TODO: the "first index check" is implemented, but I don't like it
 
 insertList :: forall ixs a. (Indexable ixs a)
             => [a] -> IxSet ixs a -> IxSet ixs a
@@ -819,7 +818,7 @@ groupBy (IxSet _ indexes) = f (access indexes)
 -- type inference.
 --
 -- The resulting list will be sorted in ascending order by 'ix'.
--- The values in '[a]' will be sorted in ascending order as well.
+-- The values in @[a]@ will be sorted in ascending order as well.
 groupAscBy :: forall ix ixs a. IsIndexOf ix ixs =>  IxSet ixs a -> [(ix, [a])]
 groupAscBy (IxSet _ indexes) = f (access indexes)
   where
@@ -831,9 +830,10 @@ groupAscBy (IxSet _ indexes) = f (access indexes)
 --
 -- The resulting list will be sorted in descending order by 'ix'.
 --
--- NOTE: The values in '[a]' are currently sorted in ascending
+-- NOTE: The values in @[a]@ are currently sorted in ascending
 -- order. But this may change if someone bothers to add
--- 'Set.toDescList'. So do not rely on the sort order of '[a]'.
+-- 'Set.toDescList'. So do not rely on the sort order of the
+-- resulting list.
 groupDescBy :: IsIndexOf ix ixs =>  IxSet ixs a -> [(ix, [a])]
 groupDescBy (IxSet _ indexes) = f (access indexes)
   where
@@ -899,10 +899,15 @@ instance (Indexable ixs a) => Monoid (IxSet ixs a) where
   mappend = union
 
 -- | Statistics about 'IxSet'. This function returns quadruple
--- consisting of 1. total number of elements in the set 2. number of
--- declared indexes 3. number of keys in all indexes 4. number of
--- values in all keys in all indexes. This can aid you in debugging
--- and optimisation.
+-- consisting of
+--
+--   1. total number of elements in the set
+--   2. number of declared indexes
+--   3. number of keys in all indexes
+--   4. number of values in all keys in all indexes.
+--
+-- This can aid you in debugging and optimisation.
+--
 stats :: (Indexable ixs a) => IxSet ixs a -> (Int,Int,Int,Int)
 stats (IxSet a ixs) = (no_elements,no_indexes,no_keys,no_values)
     where

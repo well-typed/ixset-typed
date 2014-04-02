@@ -31,8 +31,8 @@ import qualified Data.Set   as Set
 
 -- the core datatypes
 
--- | 'Ix' is a 'Map' from some 'Typeable' key to a 'Set' of values for
--- that key.  'Ix' carries type information inside.
+-- | 'Ix' is a 'Map' from some key (of type 'ix') to a 'Set' of
+-- values (of type 'a') for that key.
 data Ix (ix :: *) (a :: *) where
   Ix :: Map ix (Set a) -> (a -> [ix]) -> Ix ix a
 
