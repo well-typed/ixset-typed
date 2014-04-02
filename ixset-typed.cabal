@@ -1,5 +1,5 @@
 name:                ixset-typed
-version:             0.1.0.1
+version:             0.1.1
 synopsis:            Efficient relational queries on Haskell sets.
 description:
     Create and query sets that are indexed by multiple indices.
