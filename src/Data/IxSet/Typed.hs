@@ -28,78 +28,78 @@ Assume you have a family of types such as:
 1. Decide what parts of your type you want indexed and make your type
 an instance of 'Indexable'. Use 'ixFun' and 'ixGen' to build indexes:
 
-> type EntryIxs = '[Author, Id, Updated, Test]
-> type IxEntry  = IxSet EntryIxs Entry
->
-> instance Indexable EntryIxs Entry where
->   empty = mkEmpty
->             (ixGen (Proxy :: Proxy Author))        -- out of order
->             (ixGen (Proxy :: Proxy Id))
->             (ixGen (Proxy :: Proxy Updated))
->             (ixGen (Proxy :: Proxy Test))          -- bogus index
+    > type EntryIxs = '[Author, Id, Updated, Test]
+    > type IxEntry  = IxSet EntryIxs Entry
+    >
+    > instance Indexable EntryIxs Entry where
+    >   empty = mkEmpty
+    >             (ixGen (Proxy :: Proxy Author))        -- out of order
+    >             (ixGen (Proxy :: Proxy Id))
+    >             (ixGen (Proxy :: Proxy Updated))
+    >             (ixGen (Proxy :: Proxy Test))          -- bogus index
 
-The use of 'ixGen' requires the 'Data' and 'Typeable' instances above.
-You can build indexes manually using 'ixFun'. You can also use the
-Template Haskell function 'inferIxSet' to generate an 'Indexable'
-instance automatically.
+    The use of 'ixGen' requires the 'Data' and 'Typeable' instances above.
+    You can build indexes manually using 'ixFun'. You can also use the
+    Template Haskell function 'inferIxSet' to generate an 'Indexable'
+    instance automatically.
 
-3. Use 'insert', 'insertList', 'delete', 'updateIx', 'deleteIx'
+2. Use 'insert', 'insertList', 'delete', 'updateIx', 'deleteIx'
 and 'empty' to build up an 'IxSet' collection:
 
-> entries  = insertList [e1, e2, e3, e4] (empty :: IxEntry)
-> entries1 = foldr delete entries [e1, e3]
-> entries2 = updateIx (Id 4) e5 entries
+    > entries  = insertList [e1, e2, e3, e4] (empty :: IxEntry)
+    > entries1 = foldr delete entries [e1, e3]
+    > entries2 = updateIx (Id 4) e5 entries
 
-4. Use the query functions below to grab data from it:
+3. Use the query functions below to grab data from it:
 
-> entries @= Author "john@doe.com" @< Updated t1
+    > entries @= Author "john@doe.com" @< Updated t1
 
-Statement above will find all items in entries updated earlier than
-@t1@ by @john\@doe.com@.
+    Statement above will find all items in entries updated earlier than
+    @t1@ by @john\@doe.com@.
 
-5. Text index
+4. Text index
 
-If you want to do add a text index create a calculated index.  Then if you want
-all entries with either @word1@ or @word2@, you change the instance
-to:
+    If you want to do add a text index create a calculated index.  Then if you want
+    all entries with either @word1@ or @word2@, you change the instance
+    to:
 
-> newtype Word = Word String
->   deriving (Show, Eq, Ord)
->
-> getWords (Entry _ _ _ _ (Content s)) = map Word $ words s
->
-> type EntryIxs = '[..., Word]
-> instance Indexable EntryIxs Entry where
->     empty = mkEmpty
->               ...
->               (ixFun getWords)
+    > newtype Word = Word String
+    >   deriving (Show, Eq, Ord)
+    >
+    > getWords (Entry _ _ _ _ (Content s)) = map Word $ words s
+    >
+    > type EntryIxs = '[..., Word]
+    > instance Indexable EntryIxs Entry where
+    >     empty = mkEmpty
+    >               ...
+    >               (ixFun getWords)
 
-Now you can do this query to find entries with any of the words:
+    Now you can do this query to find entries with any of the words:
 
-> entries @+ [Word "word1", Word "word2"]
+    > entries @+ [Word "word1", Word "word2"]
 
-And if you want all entries with both:
+    And if you want all entries with both:
 
-> entries @* [Word "word1", Word "word2"]
+    > entries @* [Word "word1", Word "word2"]
 
-6. Find only the first author
+5. Find only the first author
 
-If an @Entry@ has multiple authors and you want to be able to query on
-the first author only, define a @FirstAuthor@ datatype and create an
-index with this type.  Now you can do:
+    If an @Entry@ has multiple authors and you want to be able to query on
+    the first author only, define a @FirstAuthor@ datatype and create an
+    index with this type.  Now you can do:
 
-> newtype FirstAuthor = FirstAuthor Email
->   deriving (Show, Eq, Ord)
->
-> getFirstAuthor (Entry author _ _ _ _) = [FirstAuthor author]
->
-> type EntryIxs = '[..., FirstAuthor]
-> instance Indexable EntryIxs Entry where
->     empty = mkEmpty
->               ...
->               (ixFun getFirstAuthor)
+    > newtype FirstAuthor = FirstAuthor Email
+    >   deriving (Show, Eq, Ord)
+    >
+    > getFirstAuthor (Entry author _ _ _ _) = [FirstAuthor author]
+    >
+    > type EntryIxs = '[..., FirstAuthor]
+    > instance Indexable EntryIxs Entry where
+    >     empty = mkEmpty
+    >               ...
+    >               (ixFun getFirstAuthor)
 
-> entries @= (FirstAuthor "john@doe.com")  -- guess what this does
+    > entries @= (FirstAuthor "john@doe.com")  -- guess what this does
 
 -}
 
