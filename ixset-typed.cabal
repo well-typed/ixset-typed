@@ -1,5 +1,5 @@
 name:                ixset-typed
-version:             0.1.3
+version:             0.1.4
 synopsis:            Efficient relational queries on Haskell sets.
 description:
     This Haskell package provides a data structure of sets that are indexed
