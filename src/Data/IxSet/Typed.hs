@@ -417,8 +417,8 @@ class (All Ord ixs, Ord a) => Indexable ixs a where
   -- function to create the set and fill it in with 'ixFun' and 'ixGen'.
   empty :: IxSet ixs a
 
--- | Function to be used for 'calcs' in 'inferIxSet' when you don't
--- want any calculated values.
+-- | Function to be used as third argument in 'inferIxSet'
+-- when you don't want any calculated values.
 noCalcs :: t -> ()
 noCalcs _ = ()
 
@@ -426,16 +426,23 @@ noCalcs _ = ()
 -- 'Indexable' instance from a data type, e.g.
 --
 -- > data Foo = Foo Int String
+-- >   deriving (Eq, Ord, Data, Typeable)
 --
 -- and
 --
--- > $(inferIxSet "FooDB" ''Foo 'noCalcs [''Int,''String])
+-- > inferIxSet "FooDB" ''Foo 'noCalcs [''Int, ''String]
 --
--- will build a type synonym
+-- will define:
 --
 -- > type FooDB = IxSet '[Int, String] Foo
+-- > instance Indexable '[Int, String] Foo where
+-- >   ...
 --
--- with @Int@ and @String@ as indexes.
+-- with @Int@ and @String@ as indices defined via
+--
+-- >   ixFun (flattenWithCalcs noCalcs)
+--
+-- each.
 --
 -- /WARNING/: This function uses 'flattenWithCalcs' for index generation,
 -- which in turn uses an SYB type-based traversal. It is often more efficient
