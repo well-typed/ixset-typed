@@ -188,6 +188,8 @@ import Prelude hiding (null)
 
 import           Control.Arrow  (first, second)
 import           Control.DeepSeq
+import           Data.Foldable  (Foldable)
+import qualified Data.Foldable  as Fold
 import           Data.Generics  (Data, gmapQ)
 -- import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
 import qualified Data.IxSet.Typed.Ix  as Ix
@@ -359,6 +361,16 @@ instance (All NFData ixs, NFData a) => NFData (IxList ixs a) where
 
 instance (All NFData ixs, NFData a) => NFData (IxSet ixs a) where
   rnf (IxSet a ixs) = rnf a `seq` rnf ixs
+
+instance Indexable ixs a => Monoid (IxSet ixs a) where
+  mempty  = empty
+  mappend = union
+
+instance Foldable (IxSet ixs) where
+  fold      = Fold.fold      . toSet
+  foldMap f = Fold.foldMap f . toSet
+  foldr f z = Fold.foldr f z . toSet
+  foldl f z = Fold.foldl f z . toSet
 
 -- TODO: Do we need SYBWC?
 {-
@@ -696,7 +708,7 @@ deleteIx i ixset = maybe ixset (flip delete ixset) $
 --------------------------------------------------------------------------
 
 -- | Converts an 'IxSet' to a 'Set' of its elements.
-toSet :: Ord a => IxSet ixs a -> Set a
+toSet :: IxSet ixs a -> Set a
 toSet (IxSet a _) = a
 
 -- | Converts a 'Set' to an 'IxSet'.
@@ -708,11 +720,11 @@ fromList :: (Indexable ixs a) => [a] -> IxSet ixs a
 fromList list = insertList list empty
 
 -- | Returns the number of unique items in the 'IxSet'.
-size :: Ord a => IxSet ixs a -> Int
+size :: IxSet ixs a -> Int
 size = Set.size . toSet
 
 -- | Converts an 'IxSet' to its list of elements.
-toList :: Ord a => IxSet ixs a -> [a]
+toList :: IxSet ixs a -> [a]
 toList = Set.toList . toSet
 
 -- | Converts an 'IxSet' to its list of elements.
@@ -959,10 +971,6 @@ getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)
 --   * nice way to do updates that doesn't involve reinserting the entire data
 --
 --   * can we index on xpath rather than just type?
-
-instance (Indexable ixs a) => Monoid (IxSet ixs a) where
-  mempty  = empty
-  mappend = union
 
 -- | Statistics about 'IxSet'. This function returns quadruple
 -- consisting of
