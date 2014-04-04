@@ -343,10 +343,10 @@ instance Indexable ixs a => Ord (IxSet ixs a) where
   compare (IxSet a _) (IxSet b _) = compare a b
 
 instance (Indexable ixs a, Show a) => Show (IxSet ixs a) where
-    showsPrec prec = showsPrec prec . toSet
+  showsPrec prec = showsPrec prec . toSet
 
 instance (Indexable ixs a, Read a) => Read (IxSet ixs a) where
-    readsPrec n = map (first fromSet) . readsPrec n
+  readsPrec n = map (first fromSet) . readsPrec n
 
 instance (Indexable ixs a, SafeCopy a) => SafeCopy (IxSet ixs a) where
   putCopy = contain . safePut . toList
