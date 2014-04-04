@@ -3,7 +3,6 @@ import Data.IxSet.Typed
 import Data.Time
 import Data.Int
 import Data.Data
-import Data.Proxy
 import Data.Typeable
 
 -- Example from the documentation
@@ -20,14 +19,12 @@ data Test = Test                                      deriving (Show, Eq, Ord, D
 type EntryIxs = '[Author, Id, Updated, Test, Word, FirstAuthor]
 type IxEntry  = IxSet EntryIxs Entry
 
-instance Indexable EntryIxs Entry where
-  empty = mkEmpty
-            (ixGen (Proxy :: Proxy Author))        -- out of order
-            (ixGen (Proxy :: Proxy Id))
-            (ixGen (Proxy :: Proxy Updated))
-            (ixGen (Proxy :: Proxy Test))          -- bogus index
-            (ixFun getWords)
-            (ixFun getFirstAuthor)
+instance IsIndex Entry Author      where keys = flatten
+instance IsIndex Entry Id          where keys = flatten
+instance IsIndex Entry Updated     where keys = flatten
+instance IsIndex Entry Test        where keys = flatten
+instance IsIndex Entry Word        where keys = getWords
+instance IsIndex Entry FirstAuthor where keys = getFirstAuthor
 
 entries  = insertList [e1, e2, e3, e4] (empty :: IxEntry)
 entries1 = foldr delete entries [e1,e3]
@@ -42,7 +39,7 @@ t1 = UTCTime (fromGregorian 2014 03 06) 0
 t2 = UTCTime (fromGregorian 2012 12 12) 0
 t3 = UTCTime (fromGregorian 1909 09 09) 0
 
-entries3 = entries @= Author "john@doe.com" @< Updated t1
+-- entries3 = rebuild (entries @= Author "john@doe.com") @< Updated t1
 
 newtype Word = Word String                            deriving (Show, Eq, Ord)
 newtype FirstAuthor = FirstAuthor Email               deriving (Show, Eq, Ord)

@@ -11,6 +11,7 @@ probably be considered private to @Data.IxSet.Typed@.
 -}
 module Data.IxSet.Typed.Ix
     ( Ix(..)
+    , IsIndex(..)
     , insert
     , delete
     , fromList
@@ -35,10 +36,13 @@ import qualified Data.Set        as Set
 -- | 'Ix' is a 'Map' from some key (of type 'ix') to a 'Set' of
 -- values (of type 'a') for that key.
 data Ix (ix :: *) (a :: *) where
-  Ix :: !(Map ix (Set a)) -> (a -> [ix]) -> Ix ix a
+  Ix :: !(Map ix (Set a)) -> Ix ix a
+
+class Ord ix => IsIndex a ix where
+  keys :: a -> [ix]
 
 instance (NFData ix, NFData a) => NFData (Ix ix a) where
-  rnf (Ix m f) = rnf m `seq` f `seq` ()
+  rnf (Ix m) = rnf m
 
 -- deriving instance Typeable (Ix ix a)
 
