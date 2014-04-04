@@ -24,18 +24,18 @@ module Data.IxSet.Typed.Ix
 import           Control.DeepSeq
 -- import           Data.Generics hiding (GT)
 -- import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
-import qualified Data.List  as List
-import           Data.Map   (Map)
-import qualified Data.Map   as Map
-import           Data.Set   (Set)
-import qualified Data.Set   as Set
+import qualified Data.List       as List
+import           Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+import           Data.Set        (Set)
+import qualified Data.Set        as Set
 
 -- the core datatypes
 
 -- | 'Ix' is a 'Map' from some key (of type 'ix') to a 'Set' of
 -- values (of type 'a') for that key.
 data Ix (ix :: *) (a :: *) where
-  Ix :: Map ix (Set a) -> (a -> [ix]) -> Ix ix a
+  Ix :: !(Map ix (Set a)) -> (a -> [ix]) -> Ix ix a
 
 instance (NFData ix, NFData a) => NFData (Ix ix a) where
   rnf (Ix m f) = rnf m `seq` f `seq` ()
@@ -80,7 +80,7 @@ instance (SYBWC.Data ctx a, SYBWC.Sat (ctx (Ix a)))
 -- 'Map', then a new 'Set' is added transparently.
 insert :: (Ord a, Ord k)
        => k -> a -> Map k (Set a) -> Map k (Set a)
-insert k v index = Map.insertWith' Set.union k (Set.singleton v) index
+insert k v index = Map.insertWith Set.union k (Set.singleton v) index
 
 -- | Helper function to 'insert' a list of elements into a set.
 insertList :: (Ord a, Ord k)

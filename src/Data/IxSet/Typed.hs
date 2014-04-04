@@ -195,8 +195,8 @@ import           Data.Generics  (Data, gmapQ)
 import qualified Data.IxSet.Typed.Ix  as Ix
 import           Data.IxSet.Typed.Ix  (Ix(Ix))
 import qualified Data.List      as List
-import           Data.Map       (Map)
-import qualified Data.Map       as Map
+import           Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import           Data.Maybe     (fromMaybe)
 import           Data.Monoid    (Monoid(mempty, mappend))
 import           Data.SafeCopy  (SafeCopy(..), contain, safeGet, safePut)
@@ -215,11 +215,11 @@ import GHC.Exts (Constraint)
 -- The type-level list 'ixs' contains all types that are valid index keys.
 -- The type 'a' is the type of elements in the indexed set.
 data IxSet (ixs :: [*]) (a :: *) where
-  IxSet :: Set a -> IxList ixs a -> IxSet ixs a
+  IxSet :: !(Set a) -> IxList ixs a -> IxSet ixs a
 
 data IxList (ixs :: [*]) (a :: *) where
   Nil   :: IxList '[] a
-  (:::) :: Ix ix a -> IxList ixs a -> IxList (ix ': ixs) a
+  (:::) :: !(Ix ix a) -> !(IxList ixs a) -> IxList (ix ': ixs) a
 
 infixr 5 :::
 
