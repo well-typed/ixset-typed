@@ -21,6 +21,7 @@ module Data.IxSet.Typed.Ix
     )
     where
 
+import           Control.DeepSeq
 -- import           Data.Generics hiding (GT)
 -- import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
 import qualified Data.List  as List
@@ -35,6 +36,9 @@ import qualified Data.Set   as Set
 -- values (of type 'a') for that key.
 data Ix (ix :: *) (a :: *) where
   Ix :: Map ix (Set a) -> (a -> [ix]) -> Ix ix a
+
+instance (NFData ix, NFData a) => NFData (Ix ix a) where
+  rnf (Ix m f) = rnf m `seq` f `seq` ()
 
 -- deriving instance Typeable (Ix ix a)
 

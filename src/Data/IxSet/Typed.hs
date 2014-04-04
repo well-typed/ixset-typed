@@ -187,6 +187,7 @@ where
 import Prelude hiding (null)
 
 import           Control.Arrow  (first, second)
+import           Control.DeepSeq
 import           Data.Generics  (Data, gmapQ)
 -- import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
 import qualified Data.IxSet.Typed.Ix  as Ix
@@ -351,6 +352,13 @@ instance (Indexable ixs a, Read a) => Read (IxSet ixs a) where
 instance (Indexable ixs a, SafeCopy a) => SafeCopy (IxSet ixs a) where
   putCopy = contain . safePut . toList
   getCopy = contain $ fmap fromList safeGet
+
+instance (All NFData ixs, NFData a) => NFData (IxList ixs a) where
+  rnf Nil        = ()
+  rnf (x ::: xs) = rnf x `seq` rnf xs
+
+instance (All NFData ixs, NFData a) => NFData (IxSet ixs a) where
+  rnf (IxSet a ixs) = rnf a `seq` rnf ixs
 
 -- TODO: Do we need SYBWC?
 {-
