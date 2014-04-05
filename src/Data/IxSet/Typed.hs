@@ -172,6 +172,7 @@ module Data.IxSet.Typed
      groupAscBy,
      groupDescBy,
      rebuild,
+     withRebuild,
 
      -- * Index creation helpers
      flatten,
@@ -562,6 +563,10 @@ insertList xs (IxSet a indexes) = IxSet (List.foldl' (\ b x -> Set.insert x b) a
 
         index' :: Map ix (Set a)
         index' = Ix.insertList dss index
+
+withRebuild :: IndexableWithIndex ixs ix a
+            => IxSet ixs a -> (IxSet ixs a -> IxSet '[ix] a) -> IxSet ixs a
+withRebuild ixset op = rebuild (op ixset)
 
 -- | Internal helper function that takes a partial index from one index
 -- set and rebuilds the rest of the structure of the index set.

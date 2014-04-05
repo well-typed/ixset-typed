@@ -39,7 +39,7 @@ t1 = UTCTime (fromGregorian 2014 03 06) 0
 t2 = UTCTime (fromGregorian 2012 12 12) 0
 t3 = UTCTime (fromGregorian 1909 09 09) 0
 
--- entries3 = rebuild (entries @= Author "john@doe.com") @< Updated t1
+entries3 = (entries `withRebuild` (@= Author "john@doe.com")) @< Updated t1
 
 newtype Word = Word String                            deriving (Show, Eq, Ord)
 newtype FirstAuthor = FirstAuthor Email               deriving (Show, Eq, Ord)
