@@ -317,7 +317,7 @@ ixListToList _ Nil        = []
 ixListToList f (x ::: xs) = f x : ixListToList f xs
 
 -- | Map over an index list.
-mapIxList :: (All Ord ixs)
+mapIxList :: All Ord ixs
           => (forall ix. Ord ix => Ix ix a -> Ix ix a)
                 -- ^ what to do with each index
           -> IxList ixs a -> IxList ixs a
@@ -325,7 +325,7 @@ mapIxList _ Nil        = Nil
 mapIxList f (x ::: xs) = f x ::: mapIxList f xs
 
 -- | Zip two index lists of compatible type.
-zipWithIxList :: (All Ord ixs)
+zipWithIxList :: All Ord ixs
               => (forall ix. Ord ix => Ix ix a -> Ix ix a -> Ix ix a)
                    -- ^ how to combine two corresponding indices
               -> IxList ixs a -> IxList ixs a -> IxList ixs a
@@ -601,8 +601,8 @@ type IndexOp =
 -- | Higher order operator for modifying 'IxSet's.  Use this when your
 -- final function should have the form @a -> 'IxSet' a -> 'IxSet' a@,
 -- e.g. 'insert' or 'delete'.
-change :: forall ixs a. (Indexable ixs a) =>
-          SetOp -> IndexOp -> a -> IxSet ixs a -> IxSet ixs a
+change :: forall ixs a. Indexable ixs a
+       => SetOp -> IndexOp -> a -> IxSet ixs a -> IxSet ixs a
 change opS opI x (IxSet a indexes) = IxSet (opS x a) v
   where
     v :: IxList ixs a
@@ -618,8 +618,8 @@ change opS opI x (IxSet a indexes) = IxSet (opS x a) v
         index' :: Map ix (Set a)
         index' = List.foldl' ii index ds
 
-insertList :: forall ixs a. (Indexable ixs a)
-            => [a] -> IxSet ixs a -> IxSet ixs a
+insertList :: forall ixs a. Indexable ixs a
+           => [a] -> IxSet ixs a -> IxSet ixs a
 insertList xs (IxSet a indexes) = IxSet (List.foldl' (\ b x -> Set.insert x b) a xs) v
   where
     v :: IxList ixs a
@@ -982,7 +982,7 @@ getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)
 --
 -- This can aid you in debugging and optimisation.
 --
-stats :: (Indexable ixs a) => IxSet ixs a -> (Int,Int,Int,Int)
+stats :: Indexable ixs a => IxSet ixs a -> (Int,Int,Int,Int)
 stats (IxSet a ixs) = (no_elements,no_indexes,no_keys,no_values)
     where
       no_elements = Set.size a
