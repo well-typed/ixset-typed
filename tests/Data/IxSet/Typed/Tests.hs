@@ -71,23 +71,17 @@ data G a b
     = G a b
       deriving (Eq, Ord, Show, Data, Typeable)
 
-
-$(inferIxSet "FooXs" ''FooX 'noCalcs [''Int,
-                                      ''String
-                                      ])
-
-$(inferIxSet "BadlyIndexeds" ''BadlyIndexed 'noCalcs [''String])
-$(inferIxSet "MultiIndexed" ''MultiIndex 'noCalcs [''String, ''Int, ''Integer, ''Bool, ''Char])
-$(inferIxSet "Triples" ''Triple 'noCalcs [''Int])
-$(inferIxSet "Gs" ''G 'noCalcs [''Int])
-
 fooCalcs (Foo s _) = s ++ "bar"
-$(inferIxSet "Foos" ''Foo 'fooCalcs [''String, ''Int])
 
+inferIxSet "FooXs"         ''FooX         'noCalcs  [''Int, ''String]
+inferIxSet "BadlyIndexeds" ''BadlyIndexed 'noCalcs  [''String]
+inferIxSet "MultiIndexed"  ''MultiIndex   'noCalcs  [''String, ''Int, ''Integer, ''Bool, ''Char]
+inferIxSet "Triples"       ''Triple       'noCalcs  [''Int]
+inferIxSet "Gs"            ''G            'noCalcs  [''Int]
+inferIxSet "Foos"          ''Foo          'fooCalcs [''String, ''Int]
 
 instance Indexable '[Int] S where
-    empty = mkEmpty (ixFun (\(S x) -> [length x]))
-    -- calcs _ = ()
+    empty = mkEmpty (ixFun (\ (S x) -> [length x]))
 
 ixSetCheckMethodsOnDefault :: Test
 ixSetCheckMethodsOnDefault = "ixSetCheckMethodsOnDefault" ~: test
