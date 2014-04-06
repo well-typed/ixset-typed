@@ -4,7 +4,7 @@
 -- Check that the SYBWC Data instance for IxSet works, by testing
 -- that going to and from XML works.
 
-module Data.IxSet.Tests where
+module Data.IxSet.Typed.Tests where
 
 import           Control.Monad
 import           Control.Exception as E
@@ -15,7 +15,7 @@ import qualified Data.Map          as Map
 import           Data.Maybe
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
-import           System.Random
+-- import           System.Random
 import           Test.HUnit        (Test,(~:),(@=?), test)
 import qualified Test.HUnit        as HU
 import           Test.QuickCheck
