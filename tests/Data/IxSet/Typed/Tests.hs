@@ -10,12 +10,8 @@ import           Control.Monad
 import           Control.Exception as E
 import           Data.Data         as Data
 import           Data.IxSet.Typed  as IxSet
-import           Data.Map          (Map)
-import qualified Data.Map          as Map
 import           Data.Maybe
-import           Data.Set          (Set)
 import qualified Data.Set          as Set
--- import           System.Random
 import           Test.HUnit        (Test,(~:),(@=?), test)
 import qualified Test.HUnit        as HU
 import           Test.QuickCheck
@@ -71,6 +67,7 @@ data G a b
     = G a b
       deriving (Eq, Ord, Show, Data, Typeable)
 
+fooCalcs :: Foo -> String
 fooCalcs (Foo s _) = s ++ "bar"
 
 inferIxSet "FooXs"         ''FooX         'noCalcs  [''Int, ''String]
@@ -181,7 +178,7 @@ prop_opers ixset intidx =
       gteq = ixset @>= intidx
 
 prop_sureelem :: Foos -> Foo -> Bool
-prop_sureelem ixset foo@(Foo string intidx) =
+prop_sureelem ixset foo@(Foo _string intidx) =
     not (IxSet.null eq) &&
     not (IxSet.null lteq) &&
     not (IxSet.null gteq)
@@ -199,11 +196,11 @@ prop_ranges ixset intidx1 intidx2 =
     ((ixset @>=<= (intidx1,intidx2)) == ((gt1 ||| eq1) &&& (lt2 ||| eq2)))
     where
       eq1 = ixset @= intidx1
-      lt1 = ixset @< intidx1
+      _lt1 = ixset @< intidx1
       gt1 = ixset @> intidx1
       eq2 = ixset @= intidx2
       lt2 = ixset @< intidx2
-      gt2 = ixset @> intidx2
+      _gt2 = ixset @> intidx2
 
 
 prop_any :: Foos -> [Int] -> Bool
