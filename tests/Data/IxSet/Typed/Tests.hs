@@ -62,7 +62,7 @@ inferIxSet "Gs"            ''G            'noCalcs  [''Int]
 inferIxSet "Foos"          ''Foo          'fooCalcs [''String, ''Int]
 
 instance Indexable '[Int] S where
-    empty = mkEmpty (ixFun (\ (S x) -> [length x]))
+    indices = ixList (ixFun (\ (S x) -> [length x]))
 
 ixSetCheckMethodsOnDefault :: TestTree
 ixSetCheckMethodsOnDefault =

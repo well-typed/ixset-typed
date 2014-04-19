@@ -32,11 +32,11 @@ an instance of 'Indexable'. Use 'ixFun' and 'ixGen' to build indices:
     > type IxEntry  = IxSet EntryIxs Entry
     >
     > instance Indexable EntryIxs Entry where
-    >   empty = mkEmpty
-    >             (ixGen (Proxy :: Proxy Author))        -- out of order
-    >             (ixGen (Proxy :: Proxy Id))
-    >             (ixGen (Proxy :: Proxy Updated))
-    >             (ixGen (Proxy :: Proxy Test))          -- bogus index
+    >   indices = ixList
+    >               (ixGen (Proxy :: Proxy Author))        -- out of order
+    >               (ixGen (Proxy :: Proxy Id))
+    >               (ixGen (Proxy :: Proxy Updated))
+    >               (ixGen (Proxy :: Proxy Test))          -- bogus index
 
     The use of 'ixGen' requires the 'Data' and 'Typeable' instances above.
     You can build indices manually using 'ixFun'. You can also use the
@@ -70,9 +70,9 @@ and 'empty' to build up an 'IxSet' collection:
     >
     > type EntryIxs = '[..., Word]
     > instance Indexable EntryIxs Entry where
-    >     empty = mkEmpty
-    >               ...
-    >               (ixFun getWords)
+    >     indices = ixList
+    >                 ...
+    >                 (ixFun getWords)
 
     Now you can do this query to find entries with any of the words:
 
@@ -95,9 +95,9 @@ and 'empty' to build up an 'IxSet' collection:
     >
     > type EntryIxs = '[..., FirstAuthor]
     > instance Indexable EntryIxs Entry where
-    >     empty = mkEmpty
-    >               ...
-    >               (ixFun getFirstAuthor)
+    >     indices = ixList
+    >                 ...
+    >                 (ixFun getFirstAuthor)
 
     > entries @= (FirstAuthor "john@doe.com")  -- guess what this does
 
@@ -107,14 +107,14 @@ module Data.IxSet.Typed
     (
      -- * Set type
      IxSet(),
+     IxList(),
      Indexable(..),
      IsIndexOf(),
      All,
      -- ** Declaring indices
      Ix(),
-     ixSet,
-     mkEmpty,
-     MkIxSet(),
+     ixList,
+     MkIxList(),
      ixFun,
      ixGen,
      -- ** TH derivation of indices
@@ -132,6 +132,7 @@ module Data.IxSet.Typed
      deleteIx,
 
      -- * Creation
+     empty,
      fromSet,
      fromList,
 
@@ -266,12 +267,11 @@ type instance All c (x ': xs) = (c x, All c xs)
 --
 class (All Ord ixs, Ord a) => Indexable ixs a where
 
-  -- | Define what an empty 'IxSet' for this particular type should look
-  -- like. It should have all necessary indices.
+  -- | Define how the indices for this particular type should look like.
   --
-  -- Use the 'mkEmpty' function to create the set and add indices
-  -- with 'ixFun' (or 'ixGen').
-  empty :: IxSet ixs a
+  -- Use the 'ixList' function to construct the list of indices, and use
+  -- 'ixFun' (or 'ixGen') for individual indices.
+  indices :: IxList ixs a
 
 -- | Constraint for membership in the type-level list. Says that 'ix'
 -- is contained in the index list 'ixs'.
@@ -406,62 +406,52 @@ instance (Indexable a, Ord a,Data a, Default a) => Default (IxSet a) where
 -- 'IxSet' construction
 --------------------------------------------------------------------------
 
--- | Create an 'IxSet' using a set and a number of indices. If you want to
--- use this in the 'Indexable' 'empty' method, better use 'mkEmpty' instead.
---
--- Note that this function takes a variable number of arguments.
--- Here are some example types at which the function can be used:
---
--- > ixSet :: Set a -> Ix ix1 a -> IxSet '[ix1] a
--- > ixSet :: Set a -> Ix ix1 a -> Ix ix2 a -> IxSet '[ix1, ix2] a
--- > ixSet :: Set a -> Ix ix1 a -> Ix ix2 a -> Ix ix3 a -> IxSet '[ix1, ix2, ix3] a
--- > ixSet :: ...
---
-ixSet :: MkIxSet ixs ixs a r => Set a -> r
-ixSet s = ixSet' (IxSet s)
+-- | An empty 'IxSet'.
+empty :: Indexable ixs a => IxSet ixs a
+empty = IxSet Set.empty indices
 
--- | Create an empty 'IxSet' using a number of indices. Useful in the 'Indexable'
--- 'empty' method. Use 'ixFun' and 'ixGen' for the individual indices.
+-- | Create an (empty) 'IxList' from a number of indices. Useful in the 'Indexable'
+-- 'indices' method. Use 'ixFun' and 'ixGen' for the individual indices.
 --
 -- Note that this function takes a variable number of arguments.
 -- Here are some example types at which the function can be used:
 --
--- > mkEmpty :: Ix ix1 a -> IxSet '[ix1] a
--- > mkEmpty :: Ix ix1 a -> Ix ix2 a -> IxSet '[ix1, ix2] a
--- > mkEmpty :: Ix ix1 a -> Ix ix2 a -> Ix ix3 a -> IxSet '[ix1, ix2, ix3] a
--- > mkEmpty :: ...
+-- > ixList :: Ix ix1 a -> IxList '[ix1] a
+-- > ixList :: Ix ix1 a -> Ix ix2 a -> IxList '[ix1, ix2] a
+-- > ixList :: Ix ix1 a -> Ix ix2 a -> Ix ix3 a -> IxList '[ix1, ix2, ix3] a
+-- > ixList :: ...
 --
 -- Concrete example use:
 --
 -- > instance Indexable '[..., Index1Type, Index2Type] Type where
--- >     empty = mkEmpty
+-- >     indices = ixList
 -- >                 ...
 -- >                 (ixFun getIndex1)
 -- >                 (ixGen (Proxy :: Proxy Index2Type))
 --
-mkEmpty :: MkIxSet ixs ixs a r => r
-mkEmpty = ixSet Set.empty
+ixList :: MkIxList ixs ixs a r => r
+ixList = ixList' id
 
 -- | Class that allows a variable number of arguments to be passed to the
 -- 'ixSet' and 'mkEmpty' functions. See the documentation of these functions
 -- for more information.
-class MkIxSet ixs ixs' a r | r -> a ixs ixs' where
-  ixSet' :: (IxList ixs a -> IxSet ixs' a) -> r
+class MkIxList ixs ixs' a r | r -> a ixs ixs' where
+  ixList' :: (IxList ixs a -> IxList ixs' a) -> r
 
-instance MkIxSet '[] ixs a (IxSet ixs a) where
-  ixSet' acc = acc Nil
+instance MkIxList '[] ixs a (IxList ixs a) where
+  ixList' acc = acc Nil
 
-instance MkIxSet ixs ixs' a r => MkIxSet (ix ': ixs) ixs' a (Ix ix a -> r) where
-  ixSet' acc ix = ixSet' (\ x -> acc (ix ::: x))
+instance MkIxList ixs ixs' a r => MkIxList (ix ': ixs) ixs' a (Ix ix a -> r) where
+  ixList' acc ix = ixList' (\ x -> acc (ix ::: x))
 
 -- | Create a functional index. Provided function should return a list
 -- of indices where the value should be found.
 --
--- > getIndexes :: Type -> [IndexType]
--- > getIndexes value = [...indices...]
+-- > getIndices :: Type -> [IndexType]
+-- > getIndices value = [...indices...]
 --
 -- > instance Indexable '[IndexType] Type where
--- >     empty = mkEmpty (ixFun getIndexes)
+-- >     indices = ixList (ixFun getIndices)
 --
 -- This is the recommended way to create indices.
 --
@@ -473,7 +463,7 @@ ixFun = Ix Map.empty
 -- their 'Data' instances.
 --
 -- > instance Indexable '[IndexType] Type where
--- >     empty = mkEmpty (ixGen (Proxy :: Proxy Type))
+-- >     indices = ixList (ixGen (Proxy :: Proxy Type))
 --
 -- In production systems consider using 'ixFun' in place of 'ixGen' as
 -- the former one is much faster.
@@ -555,7 +545,7 @@ inferIxSet ixset typeName calName entryPoints
                    typeList = mkTypeList (map conT entryPoints)
                in do i <- instanceD (fullContext)
                           (conT ''Indexable `appT` typeList `appT` typeCon)
-                          [valD (varP 'empty) (normalB (appsE ([| mkEmpty |] : map mkEntryPoint entryPoints))) []]
+                          [valD (varP 'indices) (normalB (appsE ([| ixList |] : map mkEntryPoint entryPoints))) []]
                      let ixType = conT ''IxSet `appT` typeList `appT` typeCon
                      ixType' <- tySynD (mkName ixset) binders ixType
                      return $ [i, ixType']  -- ++ d
@@ -647,8 +637,8 @@ insertList xs (IxSet a indexes) = IxSet (List.foldl' (\ b x -> Set.insert x b) a
 -- keep new allocations low as much as possible.
 fromMapOfSets :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
               => Map ix (Set a) -> IxSet ixs a
-fromMapOfSets partialindex = case empty of
-    IxSet _ ixs -> IxSet a (mapAt updateh updatet ixs)
+fromMapOfSets partialindex =
+    IxSet a (mapAt updateh updatet indices)
   where
     a :: Set a
     a = Set.unions (Map.elems partialindex)
@@ -702,6 +692,7 @@ deleteIx :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> IxSet ixs a -> IxSet ixs a
 deleteIx i ixset = maybe ixset (flip delete ixset) $
                        getOne $ ixset @= i
+
 
 --------------------------------------------------------------------------
 -- Conversions
