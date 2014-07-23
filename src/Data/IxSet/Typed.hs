@@ -215,14 +215,28 @@ import GHC.Exts (Constraint)
 --
 -- The type-level list 'ixs' contains all types that are valid index keys.
 -- The type 'a' is the type of elements in the indexed set.
+--
+-- On strictness: An 'IxSet' is "mostly" spine-strict. It is generally
+-- spine-strict in the set itself. All operations on 'IxSet' with the
+-- exception of queries are spine-strict in the indices as well. Query
+-- operations, however, are lazy in the indices, so querying a number of
+-- times and subsequently selecting the result will not unnecessarily
+-- rebuild all indices.
+--
 data IxSet (ixs :: [*]) (a :: *) where
-  IxSet :: Set a -> IxList ixs a -> IxSet ixs a
+  IxSet :: !(Set a) -> !(IxList ixs a) -> IxSet ixs a
 
 data IxList (ixs :: [*]) (a :: *) where
   Nil   :: IxList '[] a
   (:::) :: Ix ix a -> IxList ixs a -> IxList (ix ': ixs) a
 
 infixr 5 :::
+
+-- | A strict variant of ':::'.
+(!:::) :: Ix ix a -> IxList ixs a -> IxList (ix ': ixs) a
+(!:::) !ix !ixs = ix ::: ixs
+
+infixr 5 !:::
 
 -- TODO:
 --
@@ -282,6 +296,9 @@ class Ord ix => IsIndexOf (ix :: *) (ixs :: [*]) where
 
   -- | Map over the index list, treating the selected different
   -- from the rest.
+  --
+  -- The function 'mapAt' is lazy in the index list structure,
+  -- because it is used by query operations.
   mapAt :: (All Ord ixs)
         => (Ix ix a -> Ix ix a)
               -- ^ what to do with the selected index
@@ -324,14 +341,22 @@ mapIxList :: All Ord ixs
 mapIxList _ Nil        = Nil
 mapIxList f (x ::: xs) = f x ::: mapIxList f xs
 
--- | Zip two index lists of compatible type.
-zipWithIxList :: All Ord ixs
-              => (forall ix. Ord ix => Ix ix a -> Ix ix a -> Ix ix a)
-                   -- ^ how to combine two corresponding indices
-              -> IxList ixs a -> IxList ixs a -> IxList ixs a
-zipWithIxList _ Nil        Nil        = Nil
-zipWithIxList f (x ::: xs) (y ::: ys) = f x y ::: zipWithIxList f xs ys
-zipWithIxList _ _          _          = error "Data.IxSet.Typed.zipWithIxList: impossible"
+-- | Map over an index list (spine-strict).
+mapIxList' :: All Ord ixs
+           => (forall ix. Ord ix => Ix ix a -> Ix ix a)
+                 -- ^ what to do with each index
+           -> IxList ixs a -> IxList ixs a
+mapIxList' _ Nil        = Nil
+mapIxList' f (x ::: xs) = f x !::: mapIxList' f xs
+
+-- | Zip two index lists of compatible type (spine-strict).
+zipWithIxList' :: All Ord ixs
+               => (forall ix. Ord ix => Ix ix a -> Ix ix a -> Ix ix a)
+                    -- ^ how to combine two corresponding indices
+               -> IxList ixs a -> IxList ixs a -> IxList ixs a
+zipWithIxList' _ Nil        Nil        = Nil
+zipWithIxList' f (x ::: xs) (y ::: ys) = f x y !::: zipWithIxList' f xs ys
+zipWithIxList' _ _          _          = error "Data.IxSet.Typed.zipWithIxList: impossible"
   -- the line above is actually impossible by the types; it's just there
   -- to please avoid the warning resulting from the exhaustiveness check
 
@@ -596,7 +621,7 @@ change :: forall ixs a. Indexable ixs a
 change opS opI x (IxSet a indexes) = IxSet (opS x a) v
   where
     v :: IxList ixs a
-    v = mapIxList update indexes
+    v = mapIxList' update indexes
 
     update :: forall ix. Ord ix => Ix ix a -> Ix ix a
     update (Ix index f) = Ix index' f
@@ -613,7 +638,7 @@ insertList :: forall ixs a. Indexable ixs a
 insertList xs (IxSet a indexes) = IxSet (List.foldl' (\ b x -> Set.insert x b) a xs) v
   where
     v :: IxList ixs a
-    v = mapIxList update indexes
+    v = mapIxList' update indexes
 
     update :: forall ix. Ord ix => Ix ix a -> Ix ix a
     update (Ix index f) = Ix index' f
@@ -768,14 +793,14 @@ infixr 5 |||
 union :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 union (IxSet a1 x1) (IxSet a2 x2) =
   IxSet (Set.union a1 a2)
-    (zipWithIxList (\ (Ix a f) (Ix b _) -> Ix (Ix.union a b) f) x1 x2)
+    (zipWithIxList' (\ (Ix a f) (Ix b _) -> Ix (Ix.union a b) f) x1 x2)
 -- TODO: function is taken from the first
 
 -- | Takes the intersection of the two 'IxSet's.
 intersection :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 intersection (IxSet a1 x1) (IxSet a2 x2) =
   IxSet (Set.intersection a1 a2)
-    (zipWithIxList (\ (Ix a f) (Ix b _) -> Ix (Ix.intersection a b) f) x1 x2)
+    (zipWithIxList' (\ (Ix a f) (Ix b _) -> Ix (Ix.intersection a b) f) x1 x2)
 -- TODO: function is taken from the first
 
 --------------------------------------------------------------------------
