@@ -19,11 +19,13 @@ description:
     of the more precise types, a few manual tweaks are necessary when switching
     from one to the other, but the interface is mostly the same.
 license:             BSD3
+license-file:        COPYING
 author:              Andres Löh, Happstack team, HAppS LLC
 maintainer:          Andres Löh <andres@well-typed.com>
 category:            Data Structures
 build-type:          Simple
 cabal-version:       >= 1.10
+extra-source-files:  CHANGELOG.md
 
 source-repository head
   type:              git
