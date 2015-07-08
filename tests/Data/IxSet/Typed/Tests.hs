@@ -51,6 +51,10 @@ data G a b
     = G a b
       deriving (Eq, Ord, Show, Data, Typeable)
 
+data Multi
+    = Multi [String]
+      deriving (Eq, Ord, Show, Data, Typeable)
+
 fooCalcs :: Foo -> String
 fooCalcs (Foo s _) = s ++ "bar"
 
@@ -60,6 +64,7 @@ inferIxSet "MultiIndexed"  ''MultiIndex   'noCalcs  [''String, ''Int, ''Integer,
 inferIxSet "Triples"       ''Triple       'noCalcs  [''Int]
 inferIxSet "Gs"            ''G            'noCalcs  [''Int]
 inferIxSet "Foos"          ''Foo          'fooCalcs [''String, ''Int]
+inferIxSet "Multis"        ''Multi        'noCalcs  [''String]
 
 instance Indexable '[Int] S where
     indices = ixList (ixFun (\ (S x) -> [length x]))
@@ -268,6 +273,19 @@ multiIndexed :: TestTree
 multiIndexed =
   testGroup "MultiIndexed" $
     [ testCase "find an element" (True @=? findElement 1 1)
+   ]
+
+multiSet :: Multis
+multiSet = fromList [Multi ["abc", "def", "ghi", "jkl"]]
+
+multiValued :: TestTree
+multiValued =
+  testGroup "MultiValued" $
+    [ testCase "find a value" (1 @=? (size $ multiSet @= "abc"))
+    , testCase "find a range" (1 @=? (size $ getRange "aba" "abd" $ multiSet))
+    , testCase "find a missing range" (0 @=? (size $ getRange "abd" "abe" $ multiSet))
+    , testCase "find a @>=<" (1 @=? (size $ multiSet @>=< ("aba","abd")))
+    , testCase "find a missing @>=<" (0 @=? (size $ multiSet @>=< ("abd","abe")))
     ]
 
 allTests :: TestTree
@@ -280,6 +298,7 @@ allTests =
       , multiIndexed
       , testTriple
       , funIndexes
+      , multiValued
       ]
     , testGroup "properties" $
       [ sizeEqToListLength

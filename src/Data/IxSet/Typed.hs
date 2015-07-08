@@ -661,9 +661,9 @@ insertList xs (IxSet a indexes) = IxSet (List.foldl' (\ b x -> Set.insert x b) a
 -- add remaining ones (in updateh). Anyway we try to reuse old structure and
 -- keep new allocations low as much as possible.
 fromMapOfSets :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
-              => Map ix (Set a) -> IxSet ixs a
-fromMapOfSets partialindex =
-    IxSet a (mapAt updateh updatet indices)
+              => Map ix (Set a) -> Bool -> IxSet ixs a
+fromMapOfSets partialindex completeIndex =
+    IxSet a (mapAt  updateh updatet indices)
   where
     a :: Set a
     a = Set.unions (Map.elems partialindex)
@@ -671,12 +671,14 @@ fromMapOfSets partialindex =
     xs :: [a]
     xs = Set.toList a
 
+    check = if completeIndex then not else id
+
     -- Update function for the index corresponding to partialindex.
     updateh :: Ix ix a -> Ix ix a
     updateh (Ix _ f) = Ix ix f
       where
         dss :: [(ix, a)]
-        dss = [(k, x) | x <- xs, k <- f x, not (Map.member k partialindex)]
+        dss = [(k, x) | x <- xs, k <- f x, check (Map.member k partialindex)]
 
         ix :: Map ix (Set a)
         ix = Ix.insertList dss partialindex
@@ -835,22 +837,22 @@ ix @>= v = getGTE v ix
 -- | Returns the subset with indices in the open interval (k,k).
 (@><) :: (Indexable ixs a, IsIndexOf ix ixs)
       => IxSet ixs a -> (ix, ix) -> IxSet ixs a
-ix @>< (v1,v2) = getLT v2 $ getGT v1 ix
+ix @>< (v1,v2) = getLT v2 $ getGT' v1 ix
 
 -- | Returns the subset with indices in [k,k).
 (@>=<) :: (Indexable ixs a, IsIndexOf ix ixs)
        => IxSet ixs a -> (ix, ix) -> IxSet ixs a
-ix @>=< (v1,v2) = getLT v2 $ getGTE v1 ix
+ix @>=< (v1,v2) = getLT v2 $ getGTE' v1 ix
 
 -- | Returns the subset with indices in (k,k].
 (@><=) :: (Indexable ixs a, IsIndexOf ix ixs)
        => IxSet ixs a -> (ix, ix) -> IxSet ixs a
-ix @><= (v1,v2) = getLTE v2 $ getGT v1 ix
+ix @><= (v1,v2) = getLTE v2 $ getGT' v1 ix
 
 -- | Returns the subset with indices in [k,k].
 (@>=<=) :: (Indexable ixs a, IsIndexOf ix ixs)
         => IxSet ixs a -> (ix, ix) -> IxSet ixs a
-ix @>=<= (v1,v2) = getLTE v2 $ getGTE v1 ix
+ix @>=<= (v1,v2) = getLTE v2 $ getGTE' v1 ix
 
 -- | Creates the subset that has an index in the provided list.
 (@+) :: (Indexable ixs a, IsIndexOf ix ixs)
@@ -876,12 +878,24 @@ getLT :: (Indexable ixs a, IsIndexOf ix ixs)
       => ix -> IxSet ixs a -> IxSet ixs a
 getLT = getOrd LT
 
+-- | Returns the subset with an index less than the provided key,
+-- without rebuilding the set fully.
+getLT' :: (Indexable ixs a, IsIndexOf ix ixs)
+      => ix -> IxSet ixs a -> IxSet ixs a
+getLT' = getOrd' LT
+
 -- | Returns the subset with an index greater than the provided key.
 -- The set must be indexed over key type, doing otherwise results in
 -- runtime error.
 getGT :: (Indexable ixs a, IsIndexOf ix ixs)
       => ix -> IxSet ixs a -> IxSet ixs a
 getGT = getOrd GT
+
+-- | Returns the subset with an index greater than the provided key,
+-- without rebuilding the set fully.
+getGT' :: (Indexable ixs a, IsIndexOf ix ixs)
+      => ix -> IxSet ixs a -> IxSet ixs a
+getGT' = getOrd' GT
 
 -- | Returns the subset with an index less than or equal to the
 -- provided key.  The set must be indexed over key type, doing
@@ -897,13 +911,19 @@ getGTE :: (Indexable ixs a, IsIndexOf ix ixs)
        => ix -> IxSet ixs a -> IxSet ixs a
 getGTE = getOrd2 False True True
 
+-- | Returns the subset with an index greater than or equal to the
+-- provided key, without rebuilding the set fully.
+getGTE' :: (Indexable ixs a, IsIndexOf ix ixs)
+       => ix -> IxSet ixs a -> IxSet ixs a
+getGTE' = getOrd2' False True True
+
 -- | Returns the subset with an index within the interval provided.
 -- The bottom of the interval is closed and the top is open,
 -- i. e. [k1;k2).  The set must be indexed over key type, doing
 -- otherwise results in runtime error.
 getRange :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> ix -> IxSet ixs a -> IxSet ixs a
-getRange k1 k2 ixset = getGTE k1 (getLT k2 ixset)
+getRange k1 k2 ixset = getGTE k1 (getLT' k2 ixset)
 
 -- | Returns lists of elements paired with the indices determined by
 -- type inference.
@@ -942,7 +962,6 @@ groupDescBy (IxSet _ indexes) = f (access indexes)
 -- | A function for building up selectors on 'IxSet's.  Used in the
 -- various get* functions.  The set must be indexed over key type,
 -- doing otherwise results in runtime error.
-
 getOrd :: (Indexable ixs a, IsIndexOf ix ixs)
        => Ordering -> ix -> IxSet ixs a -> IxSet ixs a
 getOrd LT = getOrd2 True False False
@@ -950,14 +969,40 @@ getOrd EQ = getOrd2 False True False
 getOrd GT = getOrd2 False False True
 
 -- | A function for building up selectors on 'IxSet's.  Used in the
+-- various get* functions.  The set is not fully rebuilt after the lookup.
+-- The set must be indexed over key type,
+-- doing otherwise results in runtime error.
+getOrd' :: (Indexable ixs a, IsIndexOf ix ixs)
+       => Ordering -> ix -> IxSet ixs a -> IxSet ixs a
+getOrd' LT = getOrd2' True False False
+getOrd' EQ = getOrd2' False True False
+getOrd' GT = getOrd2' False False True
+
+-- | A function for building up selectors on 'IxSet's.  Used in the
 -- various get* functions.  The set must be indexed over key type,
 -- doing otherwise results in runtime error.
 getOrd2 :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
         => Bool -> Bool -> Bool -> ix -> IxSet ixs a -> IxSet ixs a
-getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)
+getOrd2 inclt inceq incgt v ix = getOrd3 inclt inceq incgt True v ix
+
+
+-- | A function for building up selectors on 'IxSet's.  Used in the
+-- various get*' functions. The set is not fully rebuilt after the lookup.
+-- The set must be indexed over key type,
+-- doing otherwise results in runtime error.
+getOrd2' :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
+        => Bool -> Bool -> Bool -> ix -> IxSet ixs a -> IxSet ixs a
+getOrd2' inclt inceq incgt v ix = getOrd3 inclt inceq incgt False v ix
+
+-- | A function for building up selectors on 'IxSet's.  Used in the
+-- various get*' functions. The set must be indexed over key type,
+-- doing otherwise results in runtime error.
+getOrd3 :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
+        => Bool -> Bool -> Bool -> Bool -> ix -> IxSet ixs a -> IxSet ixs a
+getOrd3 inclt inceq incgt completeSet v (IxSet _ ixs) = f (access ixs)
   where
     f :: Ix ix a -> IxSet ixs a
-    f (Ix index _) = fromMapOfSets result
+    f (Ix index _) = fromMapOfSets result completeSet
       where
         lt', gt' :: Map ix (Set a)
         eq' :: Maybe (Set a)
