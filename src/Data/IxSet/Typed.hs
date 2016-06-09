@@ -5,8 +5,9 @@
              DataKinds, TypeOperators, StandaloneDeriving,
              TypeFamilies, ScopedTypeVariables, ConstraintKinds,
              FunctionalDependencies, FlexibleContexts, BangPatterns #-}
+#if __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE UndecidableSuperClasses #-}
-
+#endif
 {- |
 An efficient implementation of queryable sets.
 
