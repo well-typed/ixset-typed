@@ -5,6 +5,7 @@
              DataKinds, TypeOperators, StandaloneDeriving,
              TypeFamilies, ScopedTypeVariables, ConstraintKinds,
              FunctionalDependencies, FlexibleContexts, BangPatterns #-}
+{-# LANGUAGE UndecidableSuperClasses #-}
 
 {- |
 An efficient implementation of queryable sets.
@@ -538,8 +539,14 @@ inferIxSet ixset typeName calName entryPoints
     = do calInfo <- reify calName
          typeInfo <- reify typeName
          let (context,binders) = case typeInfo of
+#if MIN_VERSION_template_haskell(2,11,0)
+                                 TyConI (DataD ctxt _ nms _ _ _) -> (ctxt,nms)
+                                 TyConI (NewtypeD ctxt _ nms _ _ _) -> (ctxt,nms)
+#else
                                  TyConI (DataD ctxt _ nms _ _) -> (ctxt,nms)
                                  TyConI (NewtypeD ctxt _ nms _ _) -> (ctxt,nms)
+#endif
+
                                  TyConI (TySynD _ nms _) -> ([],nms)
                                  _ -> error "IxSet.inferIxSet typeInfo unexpected match"
 
@@ -552,7 +559,11 @@ inferIxSet ixset typeName calName entryPoints
                 dataCtxCon <- sequence dataCtxConQ
                 return (context ++ dataCtxCon)
          case calInfo of
+#if MIN_VERSION_template_haskell(2,11,0)
+           VarI _ _t _ ->
+#else
            VarI _ _t _ _ ->
+#endif
                let {-
                    calType = getCalType t
                    getCalType (ForallT _names _ t') = getCalType t'
