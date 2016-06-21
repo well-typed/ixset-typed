@@ -46,7 +46,6 @@ library
                      Data.IxSet.Typed.Ix
 
   ghc-options:       -Wall -fno-warn-unused-do-bind
-  ghc-prof-options:  -auto-all
 
   default-language:  Haskell2010
 
