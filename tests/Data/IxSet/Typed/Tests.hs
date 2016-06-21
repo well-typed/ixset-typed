@@ -115,6 +115,8 @@ isError x = do
     Left  (ErrorCall _) -> return ()
     Right _             -> assertFailure $ "Exception expected, but call was successful."
 
+-- TODO: deferred type error checks disabled for now, because unfortunately, they are
+-- fragile to test for throughout different GHC versions
 badIndexSafeguard :: TestTree
 badIndexSafeguard =
   testGroup "bad index safeguard" $
@@ -122,8 +124,8 @@ badIndexSafeguard =
       -- testCase "check if there is error when no first index on value" $
       --   isError (size (insert (BadlyIndexed 123) empty :: BadlyIndexeds)) -- TODO: type sig now necessary
       -- TODO / GOOD: this is a type error now
-      testCase "check if indexing with missing index" $
-        isError (getOne (foox_set_cde @= True)) -- TODO: should actually verify it's a type error
+      -- testCase "check if indexing with missing index" $
+      --   isError (getOne (foox_set_cde @= True)) -- TODO: should actually verify it's a type error
     ]
 
 testTriple :: TestTree
