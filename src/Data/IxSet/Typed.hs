@@ -1,10 +1,13 @@
-{-# LANGUAGE UndecidableInstances, OverlappingInstances, FlexibleInstances,
+{-# LANGUAGE UndecidableInstances, FlexibleInstances,
              MultiParamTypeClasses, TemplateHaskell, RankNTypes,
              FunctionalDependencies, DeriveDataTypeable,
              GADTs, CPP, ScopedTypeVariables, KindSignatures,
              DataKinds, TypeOperators, StandaloneDeriving,
              TypeFamilies, ScopedTypeVariables, ConstraintKinds,
              FunctionalDependencies, FlexibleContexts, BangPatterns #-}
+#if __GLASGOW_HASKELL__ < 710
+{-# LANGUAGE OverlappingInstances #-}
+#endif
 #if __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE UndecidableSuperClasses #-}
 #endif
@@ -308,11 +311,19 @@ class Ord ix => IsIndexOf (ix :: *) (ixs :: [*]) where
               -- ^ what to do with the other indices
         -> IxList ixs a -> IxList ixs a
 
-instance Ord ix => IsIndexOf ix (ix ': ixs) where
+instance
+#if __GLASGOW_HASKELL__ >= 710
+  {-# OVERLAPPING #-}
+#endif
+  Ord ix => IsIndexOf ix (ix ': ixs) where
   access (x ::: _xs)     = x
   mapAt fh ft (x ::: xs) = fh x ::: mapIxList ft xs
 
-instance IsIndexOf ix ixs => IsIndexOf ix (ix' ': ixs) where
+instance
+#if __GLASGOW_HASKELL__ >= 710
+  {-# OVERLAPPABLE #-}
+#endif
+  IsIndexOf ix ixs => IsIndexOf ix (ix' ': ixs) where
   access (_x ::: xs)     = access xs
   mapAt fh ft (x ::: xs) = ft x ::: mapAt fh ft xs
 
@@ -358,9 +369,11 @@ zipWithIxList' :: All Ord ixs
                -> IxList ixs a -> IxList ixs a -> IxList ixs a
 zipWithIxList' _ Nil        Nil        = Nil
 zipWithIxList' f (x ::: xs) (y ::: ys) = f x y !::: zipWithIxList' f xs ys
+#if __GLASGOW_HASKELL__ < 800
 zipWithIxList' _ _          _          = error "Data.IxSet.Typed.zipWithIxList: impossible"
   -- the line above is actually impossible by the types; it's just there
   -- to please avoid the warning resulting from the exhaustiveness check
+#endif
 
 --------------------------------------------------------------------------
 -- Various instances for 'IxSet'
@@ -554,7 +567,11 @@ inferIxSet ixset typeName calName entryPoints
              names = map tyVarBndrToName binders
 
              typeCon = List.foldl' appT (conT typeName) (map varT names)
+#if MIN_VERSION_template_haskell(2,10,0)
+             mkCtx c = List.foldl' appT (conT c)
+#else
              mkCtx = classP
+#endif
              dataCtxConQ = concat [[mkCtx ''Data [varT name], mkCtx ''Ord [varT name]] | name <- names]
              fullContext = do
                 dataCtxCon <- sequence dataCtxConQ
