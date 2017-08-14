@@ -2,3 +2,4 @@ packages: .
 
 allow-newer:
   safecopy:template-haskell
+  safecopy:time
