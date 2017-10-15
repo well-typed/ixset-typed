@@ -180,6 +180,7 @@ module Data.IxSet.Typed
      groupBy,
      groupAscBy,
      groupDescBy,
+     indexKeys,
 
      -- * Index creation helpers
      flatten,
@@ -941,6 +942,13 @@ groupBy (IxSet _ indexes) = f (access indexes)
   where
     f :: Ix ix a -> [(ix, [a])]
     f (Ix index _) = map (second Set.toList) (Map.toList index)
+
+-- | Returns the list of index keys being used for a particular index.
+indexKeys :: forall ix ixs a . IsIndexOf ix ixs => IxSet ixs a -> [ix]
+indexKeys (IxSet _ indexes) = f (access indexes)
+  where
+    f :: Ix ix a -> [ix]
+    f (Ix index _) = Map.keys index
 
 -- | Returns lists of elements paired with the indices determined by
 -- type inference.
