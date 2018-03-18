@@ -207,6 +207,7 @@ import qualified Data.Map       as Map
 import           Data.Maybe     (fromMaybe)
 import           Data.Monoid    (Monoid(mempty, mappend))
 import           Data.SafeCopy  (SafeCopy(..), contain, safeGet, safePut)
+import           Data.Semigroup (Semigroup(..))
 import           Data.Set       (Set)
 import qualified Data.Set       as Set
 import           Data.Typeable  (Typeable, cast {- , typeOf -})
