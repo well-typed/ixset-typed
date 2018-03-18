@@ -403,6 +403,9 @@ instance (All NFData ixs, NFData a) => NFData (IxList ixs a) where
 instance (All NFData ixs, NFData a) => NFData (IxSet ixs a) where
   rnf (IxSet a ixs) = rnf a `seq` rnf ixs
 
+instance Indexable ixs a => Semigroup (IxSet ixs a) where
+  (<>) = mappend
+
 instance Indexable ixs a => Monoid (IxSet ixs a) where
   mempty  = empty
   mappend = union
