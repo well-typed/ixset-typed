@@ -1,3 +1,14 @@
+0.4 (2018-03-18)
+================
+
+* GHC 8.4 compatibility.
+
+* Drop compatibility with GHC 7. GHC 8.4 introduces `Semigroup` as a superclass
+  for monoid, and `Semigroup` is not in `base` prior to GHC 8. To avoid
+  a conditional interface or a dependency on the `semigroups` package, we drop
+  compatibility with GHC 7. There are not other changes in this version, so
+  `ixset-typed-0.3.1.1` remains usable with GHC 7.
+
 0.3.1.1 (2017-08-14)
 ====================
 
