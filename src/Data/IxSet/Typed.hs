@@ -1,16 +1,22 @@
-{-# LANGUAGE UndecidableInstances, FlexibleInstances,
-             MultiParamTypeClasses, TemplateHaskell, RankNTypes,
-             FunctionalDependencies, DeriveDataTypeable,
-             GADTs, CPP, ScopedTypeVariables, KindSignatures,
-             DataKinds, TypeOperators, StandaloneDeriving,
-             TypeFamilies, ScopedTypeVariables, ConstraintKinds,
-             FunctionalDependencies, FlexibleContexts, BangPatterns #-}
-#if __GLASGOW_HASKELL__ < 710
-{-# LANGUAGE OverlappingInstances #-}
-#endif
-#if __GLASGOW_HASKELL__ >= 800
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
-#endif
+
 {- |
 An efficient implementation of queryable sets.
 
@@ -193,26 +199,25 @@ where
 
 import Prelude hiding (null)
 
-import           Control.Arrow  (first, second)
-import           Control.DeepSeq
-import           Data.Foldable  (Foldable)
-import qualified Data.Foldable  as Fold
-import           Data.Generics  (Data, gmapQ)
--- import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
-import qualified Data.IxSet.Typed.Ix  as Ix
-import           Data.IxSet.Typed.Ix  (Ix(Ix))
-import qualified Data.List      as List
-import           Data.Map       (Map)
-import qualified Data.Map       as Map
-import           Data.Maybe     (fromMaybe)
-import           Data.Monoid    (Monoid(mempty, mappend))
-import           Data.SafeCopy  (SafeCopy(..), contain, safeGet, safePut)
-import           Data.Semigroup (Semigroup(..))
-import           Data.Set       (Set)
-import qualified Data.Set       as Set
-import           Data.Typeable  (Typeable, cast {- , typeOf -})
-import Language.Haskell.TH      as TH
+import Control.Arrow (first, second)
+import Control.DeepSeq
+import Data.Foldable (Foldable)
+import qualified Data.Foldable as Fold
+import Data.Generics (Data, gmapQ)
+import Data.IxSet.Typed.Ix (Ix (Ix))
+import qualified Data.IxSet.Typed.Ix as Ix
+import qualified Data.List as List
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Maybe (fromMaybe)
+import Data.Monoid (Monoid (mappend, mempty))
+import Data.SafeCopy (SafeCopy (..), contain, safeGet, safePut)
+import Data.Semigroup (Semigroup (..))
+import Data.Set (Set)
+import qualified Data.Set as Set
+import Data.Typeable (Typeable, cast)
 import GHC.Exts (Constraint)
+import Language.Haskell.TH as TH
 
 --------------------------------------------------------------------------
 -- The main 'IxSet' datatype.
@@ -314,17 +319,13 @@ class Ord ix => IsIndexOf (ix :: *) (ixs :: [*]) where
         -> IxList ixs a -> IxList ixs a
 
 instance
-#if __GLASGOW_HASKELL__ >= 710
   {-# OVERLAPPING #-}
-#endif
   Ord ix => IsIndexOf ix (ix ': ixs) where
   access (x ::: _xs)     = x
   mapAt fh ft (x ::: xs) = fh x ::: mapIxList ft xs
 
 instance
-#if __GLASGOW_HASKELL__ >= 710
   {-# OVERLAPPABLE #-}
-#endif
   IsIndexOf ix ixs => IsIndexOf ix (ix' ': ixs) where
   access (_x ::: xs)     = access xs
   mapAt fh ft (x ::: xs) = ft x ::: mapAt fh ft xs
@@ -371,11 +372,6 @@ zipWithIxList' :: All Ord ixs
                -> IxList ixs a -> IxList ixs a -> IxList ixs a
 zipWithIxList' _ Nil        Nil        = Nil
 zipWithIxList' f (x ::: xs) (y ::: ys) = f x y !::: zipWithIxList' f xs ys
-#if __GLASGOW_HASKELL__ < 800
-zipWithIxList' _ _          _          = error "Data.IxSet.Typed.zipWithIxList: impossible"
-  -- the line above is actually impossible by the types; it's just there
-  -- to please avoid the warning resulting from the exhaustiveness check
-#endif
 
 --------------------------------------------------------------------------
 -- Various instances for 'IxSet'
@@ -417,35 +413,6 @@ instance Foldable (IxSet ixs) where
   foldr f z = Fold.foldr f z . toSet
   foldl f z = Fold.foldl f z . toSet
 
--- TODO: Do we need SYBWC?
-{-
-instance ( SYBWC.Data ctx a
-         , SYBWC.Data ctx [a]
-         , SYBWC.Sat (ctx (IxSet a))
-         , SYBWC.Sat (ctx [a])
-         , Indexable a
-         , Data a
-         , Ord a
-         )
-       => SYBWC.Data ctx (IxSet a) where
-    gfoldl _ f z ixset  = z fromList `f` toList ixset
-    toConstr _ (IxSet _) = ixSetConstr
-    gunfold _ k z c  = case SYBWC.constrIndex c of
-                       1 -> k (z fromList)
-                       _ -> error "IxSet.SYBWC.Data.gunfold unexpected match"
-    dataTypeOf _ _ = ixSetDataType
-
-ixSetConstr :: SYBWC.Constr
-ixSetConstr = SYBWC.mkConstr ixSetDataType "IxSet" [] SYBWC.Prefix
-ixSetDataType :: SYBWC.DataType
-ixSetDataType = SYBWC.mkDataType "IxSet" [ixSetConstr]
--}
-
--- TODO: Do we need Default?
-{- FIXME
-instance (Indexable a, Ord a,Data a, Default a) => Default (IxSet a) where
-    defaultValue = empty
--}
 
 --------------------------------------------------------------------------
 -- 'IxSet' construction
@@ -558,13 +525,8 @@ inferIxSet ixset typeName calName entryPoints
     = do calInfo <- reify calName
          typeInfo <- reify typeName
          let (context,binders) = case typeInfo of
-#if MIN_VERSION_template_haskell(2,11,0)
                                  TyConI (DataD ctxt _ nms _ _ _) -> (ctxt,nms)
                                  TyConI (NewtypeD ctxt _ nms _ _ _) -> (ctxt,nms)
-#else
-                                 TyConI (DataD ctxt _ nms _ _) -> (ctxt,nms)
-                                 TyConI (NewtypeD ctxt _ nms _ _) -> (ctxt,nms)
-#endif
 
                                  TyConI (TySynD _ nms _) -> ([],nms)
                                  _ -> error "IxSet.inferIxSet typeInfo unexpected match"
@@ -572,21 +534,13 @@ inferIxSet ixset typeName calName entryPoints
              names = map tyVarBndrToName binders
 
              typeCon = List.foldl' appT (conT typeName) (map varT names)
-#if MIN_VERSION_template_haskell(2,10,0)
              mkCtx c = List.foldl' appT (conT c)
-#else
-             mkCtx = classP
-#endif
              dataCtxConQ = concat [[mkCtx ''Data [varT name], mkCtx ''Ord [varT name]] | name <- names]
              fullContext = do
                 dataCtxCon <- sequence dataCtxConQ
                 return (context ++ dataCtxCon)
          case calInfo of
-#if MIN_VERSION_template_haskell(2,11,0)
            VarI _ _t _ ->
-#else
-           VarI _ _t _ _ ->
-#endif
                let {-
                    calType = getCalType t
                    getCalType (ForallT _names _ t') = getCalType t'
