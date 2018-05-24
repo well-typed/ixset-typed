@@ -3,7 +3,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -33,20 +32,23 @@ Assume you have a family of types such as:
 > data Test = Test
 >   deriving (Show, Eq, Ord)
 
-1. Decide what parts of your type you want indexed and make your type
-an instance of 'Indexable'. Use 'ixFun' and 'ixGen' to build indices:
+1. Decide what parts of your type you want indexed and make 'Indexed'
+instances:
 
     > type EntryIxs = '[Author, Id, Updated, Test]
     > type IxEntry  = IxSet EntryIxs Entry
     >
-    > instance Indexable EntryIxs Entry where
-    >   indices = ixList
-    >               (ixFun (\(Entry a b _ _ _) -> a : b))  -- out of order
-    >               (ixGen (\(Entry _ _ _ i _) -> [i]))
-    >               (ixGen (\(Entry _ _ u _ _) -> [u]))
-    >               (ixGen (\_ -> []))                     -- bogus index
-
-    You use 'ixFun' to build indices manually.
+    > instance Indexed Entry Author where
+    >   ixFun (Entry a b _ _ _) = a : b
+    >
+    > instance Indexed Entry Id where
+    >   ixFun (Entry _ _ _ i _) = [i]
+    >
+    > instance Indexed Entry Updated where
+    >   ixFun (Entry _ _ u _ _) = [u]
+    >
+    > instance Indexed Entry Test where
+    >   ixFun _ = []                    -- bogus index
 
 2. Use 'insert', 'insertList', 'delete', 'updateIx', 'deleteIx'
 and 'empty' to build up an 'IxSet' collection:
@@ -71,13 +73,9 @@ and 'empty' to build up an 'IxSet' collection:
     > newtype Word = Word String
     >   deriving (Show, Eq, Ord)
     >
-    > getWords (Entry _ _ _ _ (Content s)) = map Word $ words s
-    >
     > type EntryIxs = '[..., Word]
-    > instance Indexable EntryIxs Entry where
-    >     indices = ixList
-    >                 ...
-    >                 (ixFun getWords)
+    > instance Indexed Entry Word where
+    >     ixFun (Entry _ _ _ _ (Content s)) = map Word (words s)
 
     Now you can do this query to find entries with any of the words:
 
@@ -96,13 +94,9 @@ and 'empty' to build up an 'IxSet' collection:
     > newtype FirstAuthor = FirstAuthor Email
     >   deriving (Show, Eq, Ord)
     >
-    > getFirstAuthor (Entry author _ _ _ _) = [FirstAuthor author]
-    >
     > type EntryIxs = '[..., FirstAuthor]
-    > instance Indexable EntryIxs Entry where
-    >     indices = ixList
-    >                 ...
-    >                 (ixFun getFirstAuthor)
+    > instance Indexed Entry FirstAuthor where
+    >     ixFun (Entry author _ _ _ _) = [FirstAuthor author]
 
     > entries @= (FirstAuthor "john@doe.com")  -- guess what this does
 
@@ -113,14 +107,13 @@ module Data.IxSet.Typed
      -- * Set type
      IxSet(),
      IxList(),
-     Indexable(..),
+     Indexable,
      IsIndexOf(),
      All,
      -- ** Declaring indices
      Ix(),
-     ixList,
-     MkIxList(),
-     ixFun,
+     Indexed(..),
+     MkEmptyIxList(),
 
      -- * Changes to set
      IndexOp,
@@ -240,6 +233,7 @@ infixr 5 !:::
 -- These are partially internal. TODO: Move to different module?
 --------------------------------------------------------------------------
 
+
 -- | The constraint @All c xs@ says the @c@ has to hold for all
 -- elements in the type-level list @xs@.
 --
@@ -255,24 +249,10 @@ type family All (c :: * -> Constraint) (xs :: [*]) :: Constraint
 type instance All c '[]       = ()
 type instance All c (x ': xs) = (c x, All c xs)
 
--- | Associate indices with a given type. The constraint
--- @'Indexable' ixs a@ says that we know how to build index sets
--- of type @'IxSet' ixs a@.
---
--- In order to use an 'IxSet' on a particular type, you have to
--- make it an instance of 'Indexable' yourself. There are no
--- predefined instances of 'IxSet'.
---
-class (All Ord ixs, Ord a) => Indexable ixs a where
+type Indexable ixs a = (All Ord ixs, All (Indexed a) ixs, Ord a, MkEmptyIxList ixs)
 
-  -- | Define how the indices for this particular type should look like.
-  --
-  -- Use the 'ixList' function to construct the list of indices, and use
-  -- 'ixFun' (or 'ixGen') for individual indices.
-  indices :: IxList ixs a
 
--- | Constraint for membership in the type-level list. Says that 'ix'
--- is contained in the index list 'ixs'.
+-- | Operations related to the type-level list of index types.
 class Ord ix => IsIndexOf (ix :: *) (ixs :: [*]) where
 
   -- | Provide access to the selected index in the list.
@@ -283,10 +263,10 @@ class Ord ix => IsIndexOf (ix :: *) (ixs :: [*]) where
   --
   -- The function 'mapAt' is lazy in the index list structure,
   -- because it is used by query operations.
-  mapAt :: (All Ord ixs)
-        => (Ix ix a -> Ix ix a)
+  mapAt :: (All Ord ixs, All (Indexed a) ixs)
+        => (Indexed a ix => Ix ix a -> Ix ix a)
               -- ^ what to do with the selected index
-        -> (forall ix'. Ord ix' => Ix ix' a -> Ix ix' a)
+        -> (forall ix'. (Indexed a ix', Ord ix') => Ix ix' a -> Ix ix' a)
               -- ^ what to do with the other indices
         -> IxList ixs a -> IxList ixs a
 
@@ -322,24 +302,24 @@ ixListToList _ Nil        = []
 ixListToList f (x ::: xs) = f x : ixListToList f xs
 
 -- | Map over an index list.
-mapIxList :: All Ord ixs
-          => (forall ix. Ord ix => Ix ix a -> Ix ix a)
+mapIxList :: (All Ord ixs, All (Indexed a) ixs)
+          => (forall ix. (Indexed a ix, Ord ix) => Ix ix a -> Ix ix a)
                 -- ^ what to do with each index
           -> IxList ixs a -> IxList ixs a
 mapIxList _ Nil        = Nil
 mapIxList f (x ::: xs) = f x ::: mapIxList f xs
 
 -- | Map over an index list (spine-strict).
-mapIxList' :: All Ord ixs
-           => (forall ix. Ord ix => Ix ix a -> Ix ix a)
+mapIxList' :: (All Ord ixs, All (Indexed a) ixs)
+           => (forall ix. (Indexed a ix, Ord ix) => Ix ix a -> Ix ix a)
                  -- ^ what to do with each index
            -> IxList ixs a -> IxList ixs a
 mapIxList' _ Nil        = Nil
 mapIxList' f (x ::: xs) = f x !::: mapIxList' f xs
 
 -- | Zip two index lists of compatible type (spine-strict).
-zipWithIxList' :: All Ord ixs
-               => (forall ix. Ord ix => Ix ix a -> Ix ix a -> Ix ix a)
+zipWithIxList' :: (All Ord ixs, All (Indexed a) ixs)
+               => (forall ix. (Indexed a ix, Ord ix) => Ix ix a -> Ix ix a -> Ix ix a)
                     -- ^ how to combine two corresponding indices
                -> IxList ixs a -> IxList ixs a -> IxList ixs a
 zipWithIxList' _ Nil        Nil        = Nil
@@ -392,55 +372,25 @@ instance Foldable (IxSet ixs) where
 
 -- | An empty 'IxSet'.
 empty :: Indexable ixs a => IxSet ixs a
-empty = IxSet Set.empty indices
+empty = IxSet Set.empty mkEmptyIxList
 
--- | Create an (empty) 'IxList' from a number of indices. Useful in the 'Indexable'
--- 'indices' method. Use 'ixFun' and 'ixGen' for the individual indices.
---
--- Note that this function takes a variable number of arguments.
--- Here are some example types at which the function can be used:
---
--- > ixList :: Ix ix1 a -> IxList '[ix1] a
--- > ixList :: Ix ix1 a -> Ix ix2 a -> IxList '[ix1, ix2] a
--- > ixList :: Ix ix1 a -> Ix ix2 a -> Ix ix3 a -> IxList '[ix1, ix2, ix3] a
--- > ixList :: ...
---
--- Concrete example use:
---
--- > instance Indexable '[..., Index1Type, Index2Type] Type where
--- >     indices = ixList
--- >                 ...
--- >                 (ixFun getIndex1)
--- >                 (ixGen (Proxy :: Proxy Index2Type))
---
-ixList :: MkIxList ixs ixs a r => r
-ixList = ixList' id
+-- | Create an empty 'IxList' which is part of an empty 'IxSet'. This class is
+-- used internally because instances provide a way to do case analysis on a
+-- type-level list. If you see an error message about this constraint not being
+-- satisfied, make sure the @ixs@ argument to 'Indexable' is a type-level list.
+class MkEmptyIxList (ixs :: [*]) where
+  mkEmptyIxList :: IxList ixs a
+instance MkEmptyIxList '[] where
+  mkEmptyIxList = Nil
+instance MkEmptyIxList ixs => MkEmptyIxList (ix ': ixs) where
+  mkEmptyIxList = (Ix Map.empty) ::: mkEmptyIxList
 
--- | Class that allows a variable number of arguments to be passed to the
--- 'ixSet' and 'mkEmpty' functions. See the documentation of these functions
--- for more information.
-class MkIxList ixs ixs' a r | r -> a ixs ixs' where
-  ixList' :: (IxList ixs a -> IxList ixs' a) -> r
-
-instance MkIxList '[] ixs a (IxList ixs a) where
-  ixList' acc = acc Nil
-
-instance MkIxList ixs ixs' a r => MkIxList (ix ': ixs) ixs' a (Ix ix a -> r) where
-  ixList' acc ix = ixList' (\ x -> acc (ix ::: x))
-
--- | Create a functional index. Provided function should return a list
--- of indices where the value should be found.
+-- | An 'Indexed' class asserts that it is possible to extract indices of type
+-- @ix@ from a type @a@. Provided function should return a list of indices where
+-- the value should be found.
 --
--- > getIndices :: Type -> [IndexType]
--- > getIndices value = [...indices...]
---
--- > instance Indexable '[IndexType] Type where
--- >     indices = ixList (ixFun getIndices)
---
--- This is the recommended way to create indices.
---
-ixFun :: Ord ix => (a -> [ix]) -> Ix ix a
-ixFun = Ix Map.empty
+class Indexed a ix where
+  ixFun :: a -> [ix]
 
 --------------------------------------------------------------------------
 -- Modification of 'IxSet's
@@ -462,11 +412,11 @@ change opS opI x (IxSet a indexes) = IxSet (opS x a) v
     v :: IxList ixs a
     v = mapIxList' update indexes
 
-    update :: forall ix. Ord ix => Ix ix a -> Ix ix a
-    update (Ix index f) = Ix index' f
+    update :: forall ix. (Indexed a ix, Ord ix) => Ix ix a -> Ix ix a
+    update (Ix index) = Ix index'
       where
         ds :: [ix]
-        ds = f x
+        ds = ixFun x
         ii :: forall k. Ord k => Map k (Set a) -> k -> Map k (Set a)
         ii m dkey = opI dkey x m
         index' :: Map ix (Set a)
@@ -479,11 +429,11 @@ insertList xs (IxSet a indexes) = IxSet (List.foldl' (\ b x -> Set.insert x b) a
     v :: IxList ixs a
     v = mapIxList' update indexes
 
-    update :: forall ix. Ord ix => Ix ix a -> Ix ix a
-    update (Ix index f) = Ix index' f
+    update :: forall ix. (Indexed a ix, Ord ix) => Ix ix a -> Ix ix a
+    update (Ix index) = Ix index'
       where
         dss :: [(ix, a)]
-        dss = [(k, x) | x <- xs, k <- f x]
+        dss = [(k, x) | x <- xs, k <- ixFun x]
 
         index' :: Map ix (Set a)
         index' = Ix.insertList dss index
@@ -502,7 +452,7 @@ insertList xs (IxSet a indexes) = IxSet (List.foldl' (\ b x -> Set.insert x b) a
 fromMapOfSets :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
               => Map ix (Set a) -> IxSet ixs a
 fromMapOfSets partialindex =
-    IxSet a (mapAt updateh updatet indices)
+    IxSet a (mapAt updateh updatet mkEmptyIxList)
   where
     a :: Set a
     a = Set.unions (Map.elems partialindex)
@@ -511,21 +461,21 @@ fromMapOfSets partialindex =
     xs = Set.toList a
 
     -- Update function for the index corresponding to partialindex.
-    updateh :: Ix ix a -> Ix ix a
-    updateh (Ix _ f) = Ix ix f
+    updateh :: Indexed a ix => Ix ix a -> Ix ix a
+    updateh (Ix _) = Ix ix
       where
         dss :: [(ix, a)]
-        dss = [(k, x) | x <- xs, k <- f x, not (Map.member k partialindex)]
+        dss = [(k, x) | x <- xs, k <- ixFun x, not (Map.member k partialindex)]
 
         ix :: Map ix (Set a)
         ix = Ix.insertList dss partialindex
 
     -- Update function for all other indices.
-    updatet :: forall ix'. Ord ix' => Ix ix' a -> Ix ix' a
-    updatet (Ix _ f) = Ix ix f
+    updatet :: forall ix'. (Indexed a ix', Ord ix') => Ix ix' a -> Ix ix' a
+    updatet (Ix _) = Ix ix
       where
         dss :: [(ix', a)]
-        dss = [(k, x) | x <- xs, k <- f x]
+        dss = [(k, x) | x <- xs, k <- ixFun x]
 
         ix :: Map ix' (Set a)
         ix = Ix.fromList dss
@@ -632,14 +582,14 @@ infixr 5 |||
 union :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 union (IxSet a1 x1) (IxSet a2 x2) =
   IxSet (Set.union a1 a2)
-    (zipWithIxList' (\ (Ix a f) (Ix b _) -> Ix (Ix.union a b) f) x1 x2)
+    (zipWithIxList' (\ (Ix a) (Ix b) -> Ix (Ix.union a b)) x1 x2)
 -- TODO: function is taken from the first
 
 -- | Takes the intersection of the two 'IxSet's.
 intersection :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 intersection (IxSet a1 x1) (IxSet a2 x2) =
   IxSet (Set.intersection a1 a2)
-    (zipWithIxList' (\ (Ix a f) (Ix b _) -> Ix (Ix.intersection a b) f) x1 x2)
+    (zipWithIxList' (\ (Ix a) (Ix b) -> Ix (Ix.intersection a b)) x1 x2)
 -- TODO: function is taken from the first
 
 --------------------------------------------------------------------------
@@ -750,14 +700,14 @@ groupBy :: forall ix ixs a. IsIndexOf ix ixs => IxSet ixs a -> [(ix, [a])]
 groupBy (IxSet _ indexes) = f (access indexes)
   where
     f :: Ix ix a -> [(ix, [a])]
-    f (Ix index _) = map (second Set.toList) (Map.toList index)
+    f (Ix index) = map (second Set.toList) (Map.toList index)
 
 -- | Returns the list of index keys being used for a particular index.
 indexKeys :: forall ix ixs a . IsIndexOf ix ixs => IxSet ixs a -> [ix]
 indexKeys (IxSet _ indexes) = f (access indexes)
   where
     f :: Ix ix a -> [ix]
-    f (Ix index _) = Map.keys index
+    f (Ix index) = Map.keys index
 
 -- | Returns lists of elements paired with the indices determined by
 -- type inference.
@@ -768,7 +718,7 @@ groupAscBy :: forall ix ixs a. IsIndexOf ix ixs =>  IxSet ixs a -> [(ix, [a])]
 groupAscBy (IxSet _ indexes) = f (access indexes)
   where
     f :: Ix ix a -> [(ix, [a])]
-    f (Ix index _) = map (second Set.toAscList) (Map.toAscList index)
+    f (Ix index) = map (second Set.toAscList) (Map.toAscList index)
 
 -- | Returns lists of elements paired with the indices determined by
 -- type inference.
@@ -783,7 +733,7 @@ groupDescBy :: IsIndexOf ix ixs =>  IxSet ixs a -> [(ix, [a])]
 groupDescBy (IxSet _ indexes) = f (access indexes)
   where
     f :: Ix ix a -> [(ix, [a])]
-    f (Ix index _) = map (second Set.toAscList) (Map.toDescList index)
+    f (Ix index) = map (second Set.toAscList) (Map.toDescList index)
 
 -- | A function for building up selectors on 'IxSet's.  Used in the
 -- various get* functions.  The set must be indexed over key type,
@@ -803,7 +753,7 @@ getOrd2 :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
 getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)
   where
     f :: Ix ix a -> IxSet ixs a
-    f (Ix index _) = fromMapOfSets result
+    f (Ix index) = fromMapOfSets result
       where
         lt', gt' :: Map ix (Set a)
         eq' :: Maybe (Set a)
@@ -849,5 +799,5 @@ stats (IxSet a ixs) = (no_elements,no_indexes,no_keys,no_values)
     where
       no_elements = Set.size a
       no_indexes  = lengthIxList ixs
-      no_keys     = sum (ixListToList (\ (Ix m _) -> Map.size m) ixs)
-      no_values   = sum (ixListToList (\ (Ix m _) -> sum [Set.size s | s <- Map.elems m]) ixs)
+      no_keys     = sum (ixListToList (\ (Ix m) -> Map.size m) ixs)
+      no_values   = sum (ixListToList (\ (Ix m) -> sum [Set.size s | s <- Map.elems m]) ixs)

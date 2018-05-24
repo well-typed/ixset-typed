@@ -50,44 +50,51 @@ data S
 fooCalcs :: Foo -> String
 fooCalcs (Foo s _) = s ++ "bar"
 
-instance Indexable '[Int, String] FooX where
-  indices = ixList
-              (ixFun (\x -> case x of Foo1 _ i -> [i]; Foo2 i -> [i]))
-              (ixFun (\x -> case x of Foo1 s _ -> [s]; Foo2 _ -> []))
+instance Indexed FooX Int where
+  ixFun x = case x of Foo1 _ i -> [i]; Foo2 i -> [i]
+
+instance Indexed FooX String where
+  ixFun x = case x of Foo1 s _ -> [s]; Foo2 _ -> []
 
 type FooXs = IxSet '[Int, String] FooX
 
-instance Indexable '[String] BadlyIndexed where
-  indices = ixList
-              (ixFun (\_ -> []))
+instance Indexed BadlyIndexed String where
+  ixFun _ = []
 
 type BadlyIndexeds = IxSet '[String] BadlyIndexed
 
-instance Indexable '[String, Int, Integer, Bool, Char] MultiIndex where
-  indices = ixList
-              (ixFun (\x -> case x of MultiIndex s _ _ _ _ -> [s]; MultiIndexSubset _ _ s -> [s]))
-              (ixFun (\x -> case x of MultiIndex _ i _ m _ -> i : maybeToList m; MultiIndexSubset i _ _ -> [i]))
-              (ixFun (\x -> case x of MultiIndex _ _ i _ _ -> [i]; _ -> []))
-              (ixFun (\x -> case x of MultiIndex _ _ _ _ (Left b) -> [b]; MultiIndexSubset _ b _ -> [b]; _ -> []))
-              (ixFun (\x -> case x of MultiIndex _ _ _ _ (Right c) -> [c]; _ -> []))
+instance Indexed MultiIndex String where
+  ixFun x = case x of MultiIndex s _ _ _ _ -> [s]; MultiIndexSubset _ _ s -> [s]
+
+instance Indexed MultiIndex Int where
+  ixFun x = case x of MultiIndex _ i _ m _ -> i : maybeToList m; MultiIndexSubset i _ _ -> [i]
+
+instance Indexed MultiIndex Integer where
+  ixFun x = case x of MultiIndex _ _ i _ _ -> [i]; _ -> []
+
+instance Indexed MultiIndex Bool where
+  ixFun x = case x of MultiIndex _ _ _ _ (Left b) -> [b]; MultiIndexSubset _ b _ -> [b]; _ -> []
+
+instance Indexed MultiIndex Char where
+  ixFun x = case x of MultiIndex _ _ _ _ (Right c) -> [c]; _ -> []
 
 type MultiIndexed = IxSet '[String, Int, Integer, Bool, Char] MultiIndex
 
-instance Indexable '[Int] Triple where
-  indices = ixList
-              (ixFun (\(Triple x y z) -> [x, y, z]))
+instance Indexed Triple Int where
+  ixFun (Triple x y z) = [x, y, z]
 
 type Triples = IxSet '[Int] Triple
 
-instance Indexable '[String, Int] Foo where
-  indices = ixList
-              (ixFun (\foo -> [fooCalcs foo]))
-              (ixFun (\(Foo _ i) -> [i]))
+instance Indexed Foo String where
+  ixFun foo = [fooCalcs foo]
+
+instance Indexed Foo Int where
+  ixFun (Foo _ i) = [i]
 
 type Foos = IxSet '[String, Int] Foo
 
-instance Indexable '[Int] S where
-    indices = ixList (ixFun (\ (S x) -> [length x]))
+instance Indexed S Int where
+  ixFun (S x) = [length x]
 
 ixSetCheckMethodsOnDefault :: TestTree
 ixSetCheckMethodsOnDefault =
@@ -165,8 +172,8 @@ testTriple =
 instance Arbitrary Foo where
   arbitrary = liftM2 Foo arbitrary arbitrary
 
-instance (Arbitrary a, Indexable (ix ': ixs) a)
-           => Arbitrary (IxSet (ix ': ixs) a) where
+instance (Arbitrary a, Indexable ixs a)
+           => Arbitrary (IxSet ixs a) where
   arbitrary = liftM fromList arbitrary
 
 prop_sizeEqToListLength :: Foos -> Bool

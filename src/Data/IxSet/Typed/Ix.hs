@@ -21,10 +21,10 @@ import qualified Data.Set as Set
 
 -- | 'Ix' is a 'Map' from some key (of type 'ix') to a 'Set' of
 -- values (of type 'a') for that key.
-data Ix ix a = Ix !(Map ix (Set a)) (a -> [ix])
+newtype Ix ix a = Ix (Map ix (Set a))
 
 instance (NFData ix, NFData a) => NFData (Ix ix a) where
-  rnf (Ix m f) = rnf m `seq` f `seq` ()
+  rnf (Ix m) = rnf m `seq` ()
 
 -- modification operations
 
