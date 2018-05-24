@@ -1,7 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -10,8 +9,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -23,18 +20,18 @@ An efficient implementation of queryable sets.
 Assume you have a family of types such as:
 
 > data Entry      = Entry Author [Author] Updated Id Content
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord)
 > newtype Updated = Updated UTCTime
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord)
 > newtype Id      = Id Int64
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord)
 > newtype Content = Content String
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord)
 > newtype Author  = Author Email
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord)
 > type Email      = String
 > data Test = Test
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord)
 
 1. Decide what parts of your type you want indexed and make your type
 an instance of 'Indexable'. Use 'ixFun' and 'ixGen' to build indices:
@@ -44,15 +41,12 @@ an instance of 'Indexable'. Use 'ixFun' and 'ixGen' to build indices:
     >
     > instance Indexable EntryIxs Entry where
     >   indices = ixList
-    >               (ixGen (Proxy :: Proxy Author))        -- out of order
-    >               (ixGen (Proxy :: Proxy Id))
-    >               (ixGen (Proxy :: Proxy Updated))
-    >               (ixGen (Proxy :: Proxy Test))          -- bogus index
+    >               (ixFun (\(Entry a b _ _ _) -> a : b))  -- out of order
+    >               (ixGen (\(Entry _ _ _ i _) -> [i]))
+    >               (ixGen (\(Entry _ _ u _ _) -> [u]))
+    >               (ixGen (\_ -> []))                     -- bogus index
 
-    The use of 'ixGen' requires the 'Data' and 'Typeable' instances above.
-    You can build indices manually using 'ixFun'. You can also use the
-    Template Haskell function 'inferIxSet' to generate an 'Indexable'
-    instance automatically.
+    You use 'ixFun' to build indices manually.
 
 2. Use 'insert', 'insertList', 'delete', 'updateIx', 'deleteIx'
 and 'empty' to build up an 'IxSet' collection:
@@ -127,10 +121,6 @@ module Data.IxSet.Typed
      ixList,
      MkIxList(),
      ixFun,
-     ixGen,
-     -- ** TH derivation of indices
-     noCalcs,
-     inferIxSet,
 
      -- * Changes to set
      IndexOp,
@@ -188,10 +178,6 @@ module Data.IxSet.Typed
      groupDescBy,
      indexKeys,
 
-     -- * Index creation helpers
-     flatten,
-     flattenWithCalcs,
-
      -- * Debugging and optimization
      stats
 )
@@ -203,7 +189,6 @@ import Control.Arrow (first, second)
 import Control.DeepSeq
 import Data.Foldable (Foldable)
 import qualified Data.Foldable as Fold
-import Data.Generics (Data, gmapQ)
 import Data.IxSet.Typed.Ix (Ix (Ix))
 import qualified Data.IxSet.Typed.Ix as Ix
 import qualified Data.List as List
@@ -215,9 +200,7 @@ import Data.SafeCopy (SafeCopy (..), contain, safeGet, safePut)
 import Data.Semigroup (Semigroup (..))
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Typeable (Typeable, cast)
 import GHC.Exts (Constraint)
-import Language.Haskell.TH as TH
 
 --------------------------------------------------------------------------
 -- The main 'IxSet' datatype.
@@ -249,17 +232,6 @@ infixr 5 :::
 (!:::) !ix !ixs = ix ::: ixs
 
 infixr 5 !:::
-
--- TODO:
---
--- We cannot currently derive Typeable for 'IxSet':
---
---   * In ghc-7.6, Typeable isn't supported for non-* kinds.
---   * In ghc-7.8, see bug #8950. We can work around this, but I rather
---     would wait for a proper fix.
-
--- deriving instance Data (IxSet ixs a)
--- deriving instance Typeable IxSet
 
 
 --------------------------------------------------------------------------
@@ -469,127 +441,6 @@ instance MkIxList ixs ixs' a r => MkIxList (ix ': ixs) ixs' a (Ix ix a -> r) whe
 --
 ixFun :: Ord ix => (a -> [ix]) -> Ix ix a
 ixFun = Ix Map.empty
-
--- | Create a generic index. Provided example is used only as type source
--- so you may use a 'Proxy'. This uses flatten to traverse values using
--- their 'Data' instances.
---
--- > instance Indexable '[IndexType] Type where
--- >     indices = ixList (ixGen (Proxy :: Proxy Type))
---
--- In production systems consider using 'ixFun' in place of 'ixGen' as
--- the former one is much faster.
---
-ixGen :: forall proxy a ix. (Ord ix, Data a, Typeable ix) => proxy ix -> Ix ix a
-ixGen _proxy = ixFun (flatten :: a -> [ix])
-
---------------------------------------------------------------------------
--- 'IxSet' construction via Template Haskell
---------------------------------------------------------------------------
-
--- | Function to be used as third argument in 'inferIxSet'
--- when you don't want any calculated values.
-noCalcs :: t -> ()
-noCalcs _ = ()
-
--- | Template Haskell helper function for automatically building an
--- 'Indexable' instance from a data type, e.g.
---
--- > data Foo = Foo Int String
--- >   deriving (Eq, Ord, Data, Typeable)
---
--- and
---
--- > inferIxSet "FooDB" ''Foo 'noCalcs [''Int, ''String]
---
--- will define:
---
--- > type FooDB = IxSet '[Int, String] Foo
--- > instance Indexable '[Int, String] Foo where
--- >   ...
---
--- with @Int@ and @String@ as indices defined via
---
--- >   ixFun (flattenWithCalcs noCalcs)
---
--- each.
---
--- /WARNING/: This function uses 'flattenWithCalcs' for index generation,
--- which in turn uses an SYB type-based traversal. It is often more efficient
--- (and sometimes more correct) to explicitly define the indices using
--- 'ixFun'.
---
-inferIxSet :: String -> TH.Name -> TH.Name -> [TH.Name] -> Q [Dec]
-inferIxSet _ _ _ [] = error "inferIxSet needs at least one index"
-inferIxSet ixset typeName calName entryPoints
-    = do calInfo <- reify calName
-         typeInfo <- reify typeName
-         let (context,binders) = case typeInfo of
-                                 TyConI (DataD ctxt _ nms _ _ _) -> (ctxt,nms)
-                                 TyConI (NewtypeD ctxt _ nms _ _ _) -> (ctxt,nms)
-
-                                 TyConI (TySynD _ nms _) -> ([],nms)
-                                 _ -> error "IxSet.inferIxSet typeInfo unexpected match"
-
-             names = map tyVarBndrToName binders
-
-             typeCon = List.foldl' appT (conT typeName) (map varT names)
-             mkCtx c = List.foldl' appT (conT c)
-             dataCtxConQ = concat [[mkCtx ''Data [varT name], mkCtx ''Ord [varT name]] | name <- names]
-             fullContext = do
-                dataCtxCon <- sequence dataCtxConQ
-                return (context ++ dataCtxCon)
-         case calInfo of
-           VarI _ _t _ ->
-               let {-
-                   calType = getCalType t
-                   getCalType (ForallT _names _ t') = getCalType t'
-                   getCalType (AppT (AppT ArrowT _) t') = t'
-                   getCalType t' = error ("Unexpected type in getCalType: " ++ pprint t')
-                   -}
-                   mkEntryPoint n = (conE 'Ix) `appE`
-                                    (sigE (varE 'Map.empty) (forallT binders (return context) $
-                                                             appT (appT (conT ''Map) (conT n))
-                                                                      (appT (conT ''Set) typeCon))) `appE`
-                                    (varE 'flattenWithCalcs `appE` varE calName)
-                   mkTypeList :: [TypeQ] -> TypeQ
-                   mkTypeList = foldr (\ x xs -> promotedConsT `appT` x `appT` xs) promotedNilT
-                   typeList :: TypeQ
-                   typeList = mkTypeList (map conT entryPoints)
-               in do i <- instanceD (fullContext)
-                          (conT ''Indexable `appT` typeList `appT` typeCon)
-                          [valD (varP 'indices) (normalB (appsE ([| ixList |] : map mkEntryPoint entryPoints))) []]
-                     let ixType = conT ''IxSet `appT` typeList `appT` typeCon
-                     ixType' <- tySynD (mkName ixset) binders ixType
-                     return $ [i, ixType']  -- ++ d
-           _ -> error "IxSet.inferIxSet calInfo unexpected match"
-
-tyVarBndrToName :: TyVarBndr -> Name
-tyVarBndrToName (PlainTV nm) = nm
-tyVarBndrToName (KindedTV nm _) = nm
-
--- | Generically traverses the argument to find all occurences of
--- values of type @b@ and returns them as a list.
---
--- This function properly handles 'String' as 'String' not as @['Char']@.
-flatten :: (Typeable a, Data a, Typeable b) => a -> [b]
-flatten x = case cast x of
-              Just y -> case cast (y :: String) of
-                          Just v -> [v]
-                          Nothing -> []
-              Nothing -> case cast x of
-                           Just v -> v : concat (gmapQ flatten x)
-                           Nothing -> concat (gmapQ flatten x)
-
--- | Generically traverses the argument and calculated values to find
--- all occurences of values of type @b@ and returns them as a
--- list. Equivalent to:
---
--- > flatten (x,calcs x)
---
--- This function properly handles 'String' as 'String' not as @['Char']@.
-flattenWithCalcs :: (Data c,Typeable a, Data a, Typeable b) => (a -> c) -> a -> [b]
-flattenWithCalcs calcs x = flatten (x,calcs x)
 
 --------------------------------------------------------------------------
 -- Modification of 'IxSet's

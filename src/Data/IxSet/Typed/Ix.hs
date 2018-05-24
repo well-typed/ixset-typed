@@ -29,7 +29,7 @@ instance (NFData ix, NFData a) => NFData (Ix ix a) where
 -- modification operations
 
 -- | Convenience function for inserting into 'Map's of 'Set's as in
--- the case of an 'Ix'.  If they key did not already exist in the
+-- the case of an 'Ix'.  If the key did not already exist in the
 -- 'Map', then a new 'Set' is added transparently.
 insert :: (Ord a, Ord k)
        => k -> a -> Map k (Set a) -> Map k (Set a)

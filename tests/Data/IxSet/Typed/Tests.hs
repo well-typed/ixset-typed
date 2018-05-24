@@ -1,65 +1,90 @@
-{-# LANGUAGE DeriveDataTypeable, TemplateHaskell, OverlappingInstances, UndecidableInstances, TemplateHaskell, DataKinds, FlexibleInstances, MultiParamTypeClasses, TypeOperators, KindSignatures #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fdefer-type-errors -fno-warn-orphans #-}
-
--- TODO (only if SYBWC is added again):
--- Check that the SYBWC Data instance for IxSet works, by testing
--- that going to and from XML works.
 
 module Data.IxSet.Typed.Tests where
 
-import           Control.Monad
-import           Control.Exception
-import           Data.Data         (Data, Typeable)
-import           Data.IxSet.Typed  as IxSet
-import           Data.Maybe
-import qualified Data.Set          as Set
-import           Test.Tasty
-import           Test.Tasty.HUnit
-import           Test.Tasty.QuickCheck
+import Control.Exception
+import Control.Monad
+import Data.IxSet.Typed as IxSet
+import Data.Maybe
+import qualified Data.Set as Set
+import Test.Tasty
+import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
 
 data Foo
     = Foo String Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show)
 
 data FooX
     = Foo1 String Int
     | Foo2 Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show)
 
 data NoIdxFoo
     = NoIdxFoo Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show)
 
 data BadlyIndexed
     = BadlyIndexed Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show)
 
 data MultiIndex
     = MultiIndex String Int Integer (Maybe Int) (Either Bool Char)
     | MultiIndexSubset Int Bool String
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show)
 
 data Triple
     = Triple Int Int Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show)
 
 data S
     = S String
-      deriving (Eq, Ord, Show, Data, Typeable)
-
-data G a b
-    = G a b
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show)
 
 fooCalcs :: Foo -> String
 fooCalcs (Foo s _) = s ++ "bar"
 
-inferIxSet "FooXs"         ''FooX         'noCalcs  [''Int, ''String]
-inferIxSet "BadlyIndexeds" ''BadlyIndexed 'noCalcs  [''String]
-inferIxSet "MultiIndexed"  ''MultiIndex   'noCalcs  [''String, ''Int, ''Integer, ''Bool, ''Char]
-inferIxSet "Triples"       ''Triple       'noCalcs  [''Int]
-inferIxSet "Gs"            ''G            'noCalcs  [''Int]
-inferIxSet "Foos"          ''Foo          'fooCalcs [''String, ''Int]
+instance Indexable '[Int, String] FooX where
+  indices = ixList
+              (ixFun (\x -> case x of Foo1 _ i -> [i]; Foo2 i -> [i]))
+              (ixFun (\x -> case x of Foo1 s _ -> [s]; Foo2 _ -> []))
+
+type FooXs = IxSet '[Int, String] FooX
+
+instance Indexable '[String] BadlyIndexed where
+  indices = ixList
+              (ixFun (\_ -> []))
+
+type BadlyIndexeds = IxSet '[String] BadlyIndexed
+
+instance Indexable '[String, Int, Integer, Bool, Char] MultiIndex where
+  indices = ixList
+              (ixFun (\x -> case x of MultiIndex s _ _ _ _ -> [s]; MultiIndexSubset _ _ s -> [s]))
+              (ixFun (\x -> case x of MultiIndex _ i _ m _ -> i : maybeToList m; MultiIndexSubset i _ _ -> [i]))
+              (ixFun (\x -> case x of MultiIndex _ _ i _ _ -> [i]; _ -> []))
+              (ixFun (\x -> case x of MultiIndex _ _ _ _ (Left b) -> [b]; MultiIndexSubset _ b _ -> [b]; _ -> []))
+              (ixFun (\x -> case x of MultiIndex _ _ _ _ (Right c) -> [c]; _ -> []))
+
+type MultiIndexed = IxSet '[String, Int, Integer, Bool, Char] MultiIndex
+
+instance Indexable '[Int] Triple where
+  indices = ixList
+              (ixFun (\(Triple x y z) -> [x, y, z]))
+
+type Triples = IxSet '[Int] Triple
+
+instance Indexable '[String, Int] Foo where
+  indices = ixList
+              (ixFun (\foo -> [fooCalcs foo]))
+              (ixFun (\(Foo _ i) -> [i]))
+
+type Foos = IxSet '[String, Int] Foo
 
 instance Indexable '[Int] S where
     indices = ixList (ixFun (\ (S x) -> [length x]))
