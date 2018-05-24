@@ -369,6 +369,16 @@ instance Foldable (IxSet ixs) where
   foldMap f = Fold.foldMap f . toSet
   foldr f z = Fold.foldr f z . toSet
   foldl f z = Fold.foldl f z . toSet
+  foldr' f z = Fold.foldr' f z . toSet
+  foldl' f z = Fold.foldl' f z . toSet
+  elem a    = Fold.elem a    . toSet -- Not recommended.
+  minimum   = Fold.minimum   . toSet
+  maximum   = Fold.maximum   . toSet
+  sum       = Fold.sum       . toSet
+  product   = Fold.product   . toSet
+  length    = size
+  toList    = toList
+  null      = null
 
 
 --------------------------------------------------------------------------
