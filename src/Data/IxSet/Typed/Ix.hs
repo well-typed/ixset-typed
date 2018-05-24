@@ -1,14 +1,3 @@
-{-# LANGUAGE UndecidableInstances, FlexibleInstances,
-             MultiParamTypeClasses, TemplateHaskell, PolymorphicComponents,
-             DeriveDataTypeable,ExistentialQuantification, KindSignatures,
-             StandaloneDeriving, GADTs #-}
-
-{- |
-
-This module defines 'Typeable' indexes and convenience functions. Should
-probably be considered private to @Data.IxSet.Typed@.
-
--}
 module Data.IxSet.Typed.Ix
     ( Ix(..)
     , insert
@@ -21,57 +10,21 @@ module Data.IxSet.Typed.Ix
     )
     where
 
-import           Control.DeepSeq
--- import           Data.Generics hiding (GT)
--- import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
-import qualified Data.List  as List
-import           Data.Map   (Map)
-import qualified Data.Map   as Map
-import           Data.Set   (Set)
-import qualified Data.Set   as Set
+import Control.DeepSeq
+import qualified Data.List as List
+import Data.Map (Map)
+import qualified Data.Map.Strict as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 
--- the core datatypes
+-- the core data types
 
 -- | 'Ix' is a 'Map' from some key (of type 'ix') to a 'Set' of
 -- values (of type 'a') for that key.
-data Ix (ix :: *) (a :: *) where
-  Ix :: !(Map ix (Set a)) -> (a -> [ix]) -> Ix ix a
+data Ix ix a = Ix !(Map ix (Set a)) (a -> [ix])
 
 instance (NFData ix, NFData a) => NFData (Ix ix a) where
   rnf (Ix m f) = rnf m `seq` f `seq` ()
-
--- deriving instance Typeable (Ix ix a)
-
-{-
- -- minimal hacky instance
-instance Data a => Data (Ix a) where
-    toConstr (Ix _ _) = con_Ix_Data
-    gunfold _ _     = error "gunfold"
-    dataTypeOf _    = ixType_Data
--}
-
-{-
-con_Ix_Data :: Constr
-con_Ix_Data = mkConstr ixType_Data "Ix" [] Prefix
-ixType_Data :: DataType
-ixType_Data = mkDataType "Happstack.Data.IxSet.Ix" [con_Ix_Data]
--}
-
-{-
-ixConstr :: SYBWC.Constr
-ixConstr = SYBWC.mkConstr ixDataType "Ix" [] SYBWC.Prefix
-ixDataType :: SYBWC.DataType
-ixDataType = SYBWC.mkDataType "Ix" [ixConstr]
--}
-
-{-
-instance (SYBWC.Data ctx a, SYBWC.Sat (ctx (Ix a)))
-       => SYBWC.Data ctx (Ix a) where
-    gfoldl = error "gfoldl Ix"
-    toConstr _ (Ix _ _)    = ixConstr
-    gunfold = error "gunfold Ix"
-    dataTypeOf _ _ = ixDataType
--}
 
 -- modification operations
 
@@ -80,7 +33,7 @@ instance (SYBWC.Data ctx a, SYBWC.Sat (ctx (Ix a)))
 -- 'Map', then a new 'Set' is added transparently.
 insert :: (Ord a, Ord k)
        => k -> a -> Map k (Set a) -> Map k (Set a)
-insert k v index = Map.insertWith' Set.union k (Set.singleton v) index
+insert k v index = Map.insertWith Set.union k (Set.singleton v) index
 
 -- | Helper function to 'insert' a list of elements into a set.
 insertList :: (Ord a, Ord k)
