@@ -116,9 +116,6 @@ module Data.IxSet.Typed
      MkEmptyIxList(),
 
      -- * Changes to set
-     IndexOp,
-     SetOp,
-     change,
      insert,
      insertList,
      delete,
@@ -214,6 +211,8 @@ import GHC.Exts (Constraint)
 data IxSet (ixs :: [*]) (a :: *) where
   IxSet :: !(Set a) -> !(IxList ixs a) -> IxSet ixs a
 
+-- | An 'IxList' is a list of actual indices for an 'IxSet'. It is represented
+-- as a list of maps of sets.
 data IxList (ixs :: [*]) (a :: *) where
   Nil   :: IxList '[] a
   (:::) :: Ix ix a -> IxList ixs a -> IxList (ix ': ixs) a
@@ -249,6 +248,12 @@ type family All (c :: * -> Constraint) (xs :: [*]) :: Constraint
 type instance All c '[]       = ()
 type instance All c (x ': xs) = (c x, All c xs)
 
+-- | 'Indexable' is a convenient shorthand for the instances that are necessary
+-- to use 'IxSet'. If you want to use @'IxSet' ixs a@, you need
+--
+-- * An 'Ord' instance for @a@
+-- * An 'Ord' instance for each @ix@ in @ixs@
+-- * An 'Indexed' instance for @a@ and each @ix@ in @ixs@
 type Indexable ixs a = (All Ord ixs, All (Indexed a) ixs, Ord a, MkEmptyIxList ixs)
 
 
@@ -480,9 +485,9 @@ fromMapOfSets partialindex =
         ix :: Map ix' (Set a)
         ix = Ix.fromList dss
 
--- | Inserts an item into the 'IxSet'. If your data happens to have
--- a primary key this function might not be what you want. See
--- 'updateIx'.
+-- | Inserts an item into the 'IxSet'. If your data happens to have a primary
+-- key this function is most likely /not/ what you want. In this case, use
+-- 'updateIx' instead.
 insert :: Indexable ixs a => a -> IxSet ixs a -> IxSet ixs a
 insert = change Set.insert Ix.insert
 
