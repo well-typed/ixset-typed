@@ -43,6 +43,8 @@ library
   hs-source-dirs:    src
   exposed-modules:
                      Data.IxSet.Typed
+
+  other-modules:
                      Data.IxSet.Typed.Ix
 
   ghc-options:       -Wall -fno-warn-unused-do-bind
