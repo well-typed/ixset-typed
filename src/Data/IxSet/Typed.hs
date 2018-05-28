@@ -573,13 +573,13 @@ toDescList _ ixset = concatMap snd (groupDescBy ixset :: [(ix, [a])])
 
 -- | If the 'IxSet' is a singleton it will return the one item stored in it.
 -- If 'IxSet' is empty or has many elements this function returns 'Nothing'.
-getOne :: Ord a => IxSet ixs a -> Maybe a
+getOne :: IxSet ixs a -> Maybe a
 getOne ixset = case toList ixset of
                    [x] -> Just x
                    _   -> Nothing
 
 -- | Like 'getOne' with a user-provided default.
-getOneOr :: Ord a => a -> IxSet ixs a -> a
+getOneOr :: a -> IxSet ixs a -> a
 getOneOr def = fromMaybe def . getOne
 
 -- | Return 'True' if the 'IxSet' is empty, 'False' otherwise.
