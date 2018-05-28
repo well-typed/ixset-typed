@@ -204,12 +204,12 @@ testJoin =
     s1 = fromList [J1 1 "a", J1 2 "b", J1 3 "c", J1 3 "cc"]
     s2 :: J2s
     s2 = fromList [J2 1 "xxx" '0', J2 3 "yyy" '1', J2 3 "yyyy" '2', J2 5 "zzz" '3']
-    result :: IxSet '[Int, String] (J1, J2)
-    result = fromList [ (J1 1 "a", J2 1 "xxx" '0')
-                      , (J1 3 "c", J2 3 "yyy" '1')
-                      , (J1 3 "c", J2 3 "yyyy" '2')
-                      , (J1 3 "cc", J2 3 "yyy" '1')
-                      , (J1 3 "cc", J2 3 "yyyy" '2')
+    result :: IxSet '[Int, String] (Joined J1 J2)
+    result = fromList [ Joined (J1 1 "a", J2 1 "xxx" '0')
+                      , Joined (J1 3 "c", J2 3 "yyy" '1')
+                      , Joined (J1 3 "c", J2 3 "yyyy" '2')
+                      , Joined (J1 3 "cc", J2 3 "yyy" '1')
+                      , Joined (J1 3 "cc", J2 3 "yyyy" '2')
                       ]
 
 instance Arbitrary Foo where

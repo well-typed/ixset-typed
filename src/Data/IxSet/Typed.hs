@@ -175,6 +175,7 @@ module Data.IxSet.Typed
      gettingIx,
 
      -- * Joins
+     Joined(..),
      innerJoinUsing,
 
      -- * Debugging and optimization
@@ -414,8 +415,7 @@ instance MkEmptyIxList ixs => MkEmptyIxList (ix ': ixs) where
 
 -- | An 'Indexed' class asserts that it is possible to extract indices of type
 -- @ix@ from a type @a@. Provided function should return a list of indices where
--- the value should be found.
---
+-- the value should be found. There are no predefined instances for 'Indexed'.
 class Indexed a ix where
   ixFun :: a -> [ix]
 
@@ -819,8 +819,10 @@ getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)
 -- Joins
 --------------------------------------------------------------------------
 
-instance (Indexed a ix, Indexed b ix) => Indexed (a, b) ix where
-  ixFun (a, b) = ixFun a <> ixFun b
+newtype Joined a b = Joined (a, b) deriving (Show, Read, Eq, Ord)
+
+instance (Indexed a ix, Indexed b ix) => Indexed (Joined a b) ix where
+  ixFun (Joined (a, b)) = ixFun a <> ixFun b
 
 -- | Perform an inner join between two tables using a specific index. The
 -- expression @'innerJoinUsing' s1 s2 (Proxy :: Proxy t)@ is similar in purpose
@@ -829,17 +831,17 @@ instance (Indexed a ix, Indexed b ix) => Indexed (a, b) ix where
 -- @'Indexed' a ix@ and @'Indexed' b ix@ exist.
 innerJoinUsing ::
      forall ixs1 ixs2 ixs3 a b proxy ix.
-     (Indexable ixs3 (a, b), IsIndexOf ix ixs1, IsIndexOf ix ixs2, IsIndexOf ix ixs3)
+     (Indexable ixs3 (Joined a b), IsIndexOf ix ixs1, IsIndexOf ix ixs2, IsIndexOf ix ixs3)
   => IxSet ixs1 a
   -> IxSet ixs2 b
   -> proxy ix
-  -> IxSet ixs3 (a, b)
+  -> IxSet ixs3 (Joined a b)
 innerJoinUsing (IxSet _ ixs1) (IxSet _ ixs2) _ = f (access ixs1) (access ixs2)
   where
-    f :: Ix ix a -> Ix ix b -> IxSet ixs3 (a, b)
+    f :: Ix ix a -> Ix ix b -> IxSet ixs3 (Joined a b)
     f (Ix m1) (Ix m2) =
       fromMapOfSets
-        (MM.merge MM.dropMissing MM.dropMissing (MM.zipWithMatched (\_ a b -> Set.cartesianProduct a b)) m1 m2)
+        (MM.merge MM.dropMissing MM.dropMissing (MM.zipWithMatched (\_ a b -> Set.mapMonotonic Joined (Set.cartesianProduct a b))) m1 m2)
 
 --------------------------------------------------------------------------
 -- Lenses and other optics
