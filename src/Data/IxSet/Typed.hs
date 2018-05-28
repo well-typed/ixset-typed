@@ -168,6 +168,11 @@ module Data.IxSet.Typed
      groupDescBy,
      indexKeys,
 
+     -- * Lenses and optics
+     atPrimaryKey,
+     ixPrimaryKey,
+     gettingIx,
+
      -- * Joins
      innerJoinUsing,
 
@@ -180,8 +185,10 @@ import Prelude hiding (null)
 
 import Control.Arrow (first, second)
 import Control.DeepSeq
+import Data.Coerce
 import Data.Foldable (Foldable)
 import qualified Data.Foldable as Fold
+import Data.Functor.Const
 import Data.IxSet.Typed.Ix (Ix (Ix))
 import qualified Data.IxSet.Typed.Ix as Ix
 import qualified Data.List as List
@@ -814,6 +821,45 @@ innerJoinUsing (IxSet _ ixs1) (IxSet _ ixs2) _ = f (access ixs1) (access ixs2)
     f (Ix m1) (Ix m2) =
       fromMapOfSets
         (MM.merge MM.dropMissing MM.dropMissing (MM.zipWithMatched (\_ a b -> Set.cartesianProduct a b)) m1 m2)
+
+--------------------------------------------------------------------------
+-- Lenses and other optics
+--------------------------------------------------------------------------
+
+-- | Assuming the given index is a /primary key/, constructs a lens to access
+-- the value associated with the primary key. The getting operation uses 'getEQ'
+-- and 'getOne' and the setting operation uses 'updateIx' or 'deleteIx'.
+-- Therefore, this /will/ violate lens laws if the given index is not actually a
+-- primary key.
+atPrimaryKey :: (Indexable ixs a, IsIndexOf ix ixs, Functor f) => ix -> (Maybe a -> f (Maybe a)) -> (IxSet ixs a -> f (IxSet ixs a))
+atPrimaryKey i afb s' = sbt s' <$> afb (sa s')
+  where
+    sa = getOne . getEQ i
+    {-# INLINE sa #-}
+
+    sbt s Nothing = deleteIx i s
+    sbt s (Just b) = updateIx i b s
+    {-# INLINE sbt #-}
+{-# INLINE atPrimaryKey #-}
+
+-- | Assuming the given index is a /primary key/, constructs a traversal to
+-- access the value associated with the primary key. This will not work when the
+-- provided index is not actually a primary key.
+ixPrimaryKey :: (Indexable ixs a, IsIndexOf ix ixs, Applicative f) => ix -> (a -> f a) -> (IxSet ixs a -> f (IxSet ixs a))
+ixPrimaryKey i afb =
+  atPrimaryKey
+    i
+    ((\x ->
+        case x of
+          Nothing -> pure Nothing
+          Just y -> Just <$> y) .
+     fmap afb)
+{-# INLINE ixPrimaryKey #-}
+
+-- | A getter to retrieve a 'Set' at the specified index.
+gettingIx :: (Indexable ixs a, IsIndexOf ix ixs) => ix -> (Set a -> Const r (Set.Set a)) -> IxSet ixs a -> Const r (IxSet ixs a)
+gettingIx i afb = coerce . afb . toSet . getEQ i
+{-# INLINE gettingIx #-}
 
 -- Optimization todo:
 --
