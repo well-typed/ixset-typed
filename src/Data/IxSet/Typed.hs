@@ -540,8 +540,14 @@ toSet :: IxSet ixs a -> Set a
 toSet (IxSet a _) = a
 
 -- | Converts a 'Set' to an 'IxSet'.
-fromSet :: (Indexable ixs a) => Set a -> IxSet ixs a
-fromSet = fromList . Set.toList
+fromSet :: forall ixs a. (Indexable ixs a) => Set a -> IxSet ixs a
+fromSet set = IxSet set v
+  where
+    v :: IxList ixs a
+    v = mapIxList mkIx mkEmptyIxList
+
+    mkIx :: forall ix. (Indexed a ix, Ord ix) => Ix ix a -> Ix ix a
+    mkIx (Ix _) = Ix (Ix.fromList [(k, x) | x <- Set.toList set, k <- ixFun x])
 
 -- | Converts a list to an 'IxSet'.
 fromList :: (Indexable ixs a) => [a] -> IxSet ixs a
