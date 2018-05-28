@@ -542,7 +542,7 @@ filter f (IxSet a il) = IxSet a' il'
     il' = mapIxList update il
       where
         update :: forall ix. Ix ix a -> Ix ix a
-        update (Ix ix) = Ix (Ix.filter (\v -> Set.member v a') ix)
+        update (Ix ix) = Ix (Ix.filterFrom a' ix)
 
 --------------------------------------------------------------------------
 -- Conversions

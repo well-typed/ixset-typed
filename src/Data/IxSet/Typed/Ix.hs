@@ -7,7 +7,7 @@ module Data.IxSet.Typed.Ix
     , deleteList
     , union
     , intersection
-    , filter
+    , filterFrom
     )
     where
 
@@ -73,8 +73,8 @@ intersection :: (Ord a, Ord k)
 intersection index1 index2 = Map.filter (not . Set.null) $
                              Map.intersectionWith Set.intersection index1 index2
 
--- | Filters the sets according to the given condition.
-filter :: (a -> Bool) -> Map k (Set a) -> Map k (Set a)
-filter f index = runIdentity (Map.traverseMaybeWithKey g index)
-  where g _ set = let set' = Set.filter f set
+-- | Filters the sets by restricting to the elements in the provided set.
+filterFrom :: (Ord a) => Set a -> Map k (Set a) -> Map k (Set a)
+filterFrom s index = runIdentity (Map.traverseMaybeWithKey g index)
+  where g _ set = let set' = Set.intersection set s
                   in if Set.null set' then Identity Nothing else Identity (Just set')
