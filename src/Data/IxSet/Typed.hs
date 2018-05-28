@@ -472,15 +472,12 @@ fromMapOfSets partialindex =
     a :: Set a
     a = Set.unions (Map.elems partialindex)
 
-    xs :: [a]
-    xs = Set.toList a
-
     -- Update function for the index corresponding to partialindex.
     updateh :: Indexed a ix => Ix ix a -> Ix ix a
     updateh (Ix _) = Ix ix
       where
         dss :: [(ix, a)]
-        dss = [(k, x) | x <- xs, k <- ixFun x, not (Map.member k partialindex)]
+        dss = [(k, x) | x <- Set.toList a, k <- ixFun x, not (Map.member k partialindex)]
 
         ix :: Map ix (Set a)
         ix = Ix.insertList dss partialindex
@@ -490,7 +487,7 @@ fromMapOfSets partialindex =
     updatet (Ix _) = Ix ix
       where
         dss :: [(ix', a)]
-        dss = [(k, x) | x <- xs, k <- ixFun x]
+        dss = [(k, x) | x <- Set.toList a, k <- ixFun x]
 
         ix :: Map ix' (Set a)
         ix = Ix.fromList dss
