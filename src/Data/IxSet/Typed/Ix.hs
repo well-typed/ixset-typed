@@ -7,15 +7,18 @@ module Data.IxSet.Typed.Ix
     , deleteList
     , union
     , intersection
+    , filter
     )
     where
 
 import Control.DeepSeq
+import Data.Functor.Identity
 import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Prelude hiding (filter)
 
 -- the core data types
 
@@ -70,3 +73,8 @@ intersection :: (Ord a, Ord k)
 intersection index1 index2 = Map.filter (not . Set.null) $
                              Map.intersectionWith Set.intersection index1 index2
 
+-- | Filters the sets according to the given condition.
+filter :: (a -> Bool) -> Map k (Set a) -> Map k (Set a)
+filter f index = runIdentity (Map.traverseMaybeWithKey g index)
+  where g _ set = let set' = Set.filter f set
+                  in if Set.null set' then Identity Nothing else Identity (Just set')

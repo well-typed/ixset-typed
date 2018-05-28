@@ -121,6 +121,7 @@ module Data.IxSet.Typed
      delete,
      updateIx,
      deleteIx,
+     filter,
 
      -- * Creation
      empty,
@@ -181,7 +182,7 @@ module Data.IxSet.Typed
 )
 where
 
-import Prelude hiding (null)
+import Prelude hiding (filter, null)
 
 import Control.Arrow (first, second)
 import Control.DeepSeq
@@ -530,6 +531,18 @@ deleteIx :: (Indexable ixs a, IsIndexOf ix ixs)
 deleteIx i ixset = maybe ixset (flip delete ixset) $
                        getOne $ ixset @= i
 
+-- | /O(n)/. Filter all elements that satisfy the predicate. In general, using
+-- indexing operations is preferred, so instead of using 'filter' you should
+-- construct an index that accomplishes this. This function will call the
+-- provided predicate exactly once for each element in the 'IxSet'.
+filter :: forall ixs a. Indexable ixs a => (a -> Bool) -> (IxSet ixs a -> IxSet ixs a)
+filter f (IxSet a il) = IxSet a' il'
+  where
+    a' = Set.filter f a
+    il' = mapIxList update il
+      where
+        update :: forall ix. Ix ix a -> Ix ix a
+        update (Ix ix) = Ix (Ix.filter (\v -> Set.member v a') ix)
 
 --------------------------------------------------------------------------
 -- Conversions
