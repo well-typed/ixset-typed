@@ -168,6 +168,9 @@ module Data.IxSet.Typed
      groupDescBy,
      indexKeys,
 
+     -- * Joins
+     innerJoinUsing,
+
      -- * Debugging and optimization
      stats
 )
@@ -184,6 +187,7 @@ import qualified Data.IxSet.Typed.Ix as Ix
 import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.Map.Merge.Lazy as MM
 import Data.Maybe (fromMaybe)
 import Data.Monoid (Monoid (mappend, mempty))
 import Data.SafeCopy (SafeCopy (..), contain, safeGet, safePut)
@@ -784,6 +788,32 @@ getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)
         result = case eq of
           Just eqset -> Map.insertWith Set.union v eqset ltgt
           Nothing    -> ltgt
+
+--------------------------------------------------------------------------
+-- Joins
+--------------------------------------------------------------------------
+
+instance (Indexed a ix, Indexed b ix) => Indexed (a, b) ix where
+  ixFun (a, b) = ixFun a <> ixFun b
+
+-- | Perform an inner join between two tables using a specific index. The
+-- expression @'innerJoinUsing' s1 s2 (Proxy :: Proxy t)@ is similar in purpose
+-- to the SQL expression @SELECT * FROM s1 INNER JOIN s2 USING (t)@. The
+-- resulting 'IxSet' can contain any index type @ix@ for which the instances
+-- @'Indexed' a ix@ and @'Indexed' b ix@ exist.
+innerJoinUsing ::
+     forall ixs1 ixs2 ixs3 a b proxy ix.
+     (Indexable ixs3 (a, b), IsIndexOf ix ixs1, IsIndexOf ix ixs2, IsIndexOf ix ixs3)
+  => IxSet ixs1 a
+  -> IxSet ixs2 b
+  -> proxy ix
+  -> IxSet ixs3 (a, b)
+innerJoinUsing (IxSet _ ixs1) (IxSet _ ixs2) _ = f (access ixs1) (access ixs2)
+  where
+    f :: Ix ix a -> Ix ix b -> IxSet ixs3 (a, b)
+    f (Ix m1) (Ix m2) =
+      fromMapOfSets
+        (MM.merge MM.dropMissing MM.dropMissing (MM.zipWithMatched (\_ a b -> Set.cartesianProduct a b)) m1 m2)
 
 -- Optimization todo:
 --

@@ -4,7 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# OPTIONS_GHC -fdefer-type-errors -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Data.IxSet.Typed.Tests where
 
@@ -12,6 +12,7 @@ import Control.Exception
 import Control.Monad
 import Data.IxSet.Typed as IxSet
 import Data.Maybe
+import Data.Proxy
 import qualified Data.Set as Set
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -45,6 +46,14 @@ data Triple
 
 data S
     = S String
+      deriving (Eq, Ord, Show)
+
+data J1
+    = J1 Int String
+      deriving (Eq, Ord, Show)
+
+data J2
+    = J2 Int String Char
       deriving (Eq, Ord, Show)
 
 fooCalcs :: Foo -> String
@@ -95,6 +104,22 @@ type Foos = IxSet '[String, Int] Foo
 
 instance Indexed S Int where
   ixFun (S x) = [length x]
+
+instance Indexed J1 Int where
+  ixFun (J1 i _) = [i]
+
+instance Indexed J1 String where
+  ixFun (J1 _ s) = [s]
+
+instance Indexed J2 Int where
+  ixFun (J2 i _ _) = [i]
+
+instance Indexed J2 String where
+  ixFun (J2 _ s _) = [s]
+
+type J1s = IxSet '[Int, String] J1
+
+type J2s = IxSet '[Int, String] J2
 
 ixSetCheckMethodsOnDefault :: TestTree
 ixSetCheckMethodsOnDefault =
@@ -168,6 +193,24 @@ testTriple =
                 @= (1::Int) @= (2::Int))
     ]
 
+testJoin :: TestTree
+testJoin =
+  testGroup "Joins"
+    [ testCase "check basic innerJoinUsing" $
+        result @=? innerJoinUsing s1 s2 (Proxy :: Proxy Int)
+    ]
+  where
+    s1 :: J1s
+    s1 = fromList [J1 1 "a", J1 2 "b", J1 3 "c", J1 3 "cc"]
+    s2 :: J2s
+    s2 = fromList [J2 1 "xxx" '0', J2 3 "yyy" '1', J2 3 "yyyy" '2', J2 5 "zzz" '3']
+    result :: IxSet '[Int, String] (J1, J2)
+    result = fromList [ (J1 1 "a", J2 1 "xxx" '0')
+                      , (J1 3 "c", J2 3 "yyy" '1')
+                      , (J1 3 "c", J2 3 "yyyy" '2')
+                      , (J1 3 "cc", J2 3 "yyy" '1')
+                      , (J1 3 "cc", J2 3 "yyyy" '2')
+                      ]
 
 instance Arbitrary Foo where
   arbitrary = liftM2 Foo arbitrary arbitrary
@@ -314,6 +357,7 @@ allTests =
       , multiIndexed
       , testTriple
       , funIndexes
+      , testJoin
       ]
     , testGroup "properties" $
       [ sizeEqToListLength
