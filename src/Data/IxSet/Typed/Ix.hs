@@ -27,6 +27,7 @@ import           Control.DeepSeq
 import qualified Data.List  as List
 import           Data.Map   (Map)
 import qualified Data.Map   as Map
+import qualified Data.Map.Strict as Map.Strict
 import           Data.Set   (Set)
 import qualified Data.Set   as Set
 
@@ -80,7 +81,7 @@ instance (SYBWC.Data ctx a, SYBWC.Sat (ctx (Ix a)))
 -- 'Map', then a new 'Set' is added transparently.
 insert :: (Ord a, Ord k)
        => k -> a -> Map k (Set a) -> Map k (Set a)
-insert k v index = Map.insertWith' Set.union k (Set.singleton v) index
+insert k v index = Map.Strict.insertWith Set.union k (Set.singleton v) index
 
 -- | Helper function to 'insert' a list of elements into a set.
 insertList :: (Ord a, Ord k)
