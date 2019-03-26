@@ -12,7 +12,6 @@ module Data.IxSet.Typed.Ix
     where
 
 import Control.DeepSeq
-import Data.Functor.Identity
 import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map.Strict as Map
@@ -75,6 +74,6 @@ intersection index1 index2 = Map.filter (not . Set.null) $
 
 -- | Filters the sets by restricting to the elements in the provided set.
 filterFrom :: (Ord a) => Set a -> Map k (Set a) -> Map k (Set a)
-filterFrom s index = runIdentity (Map.traverseMaybeWithKey g index)
-  where g _ set = let set' = Set.intersection set s
-                  in if Set.null set' then Identity Nothing else Identity (Just set')
+filterFrom s index = Map.mapMaybe g index
+  where g set = let set' = Set.intersection set s
+                in if Set.null set' then Nothing else Just set'
