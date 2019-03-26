@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -61,61 +62,77 @@ fooCalcs (Foo s _) = s ++ "bar"
 
 instance Indexed FooX Int where
   ixFun x = case x of Foo1 _ i -> [i]; Foo2 i -> [i]
+  type DoesIxFunReturnAtMostOne FooX Int = 'AtMostOne
 
 instance Indexed FooX String where
   ixFun x = case x of Foo1 s _ -> [s]; Foo2 _ -> []
+  type DoesIxFunReturnAtMostOne FooX String = 'AtMostOne
 
 type FooXs = IxSet '[Int, String] FooX
 
 instance Indexed BadlyIndexed String where
   ixFun _ = []
+  type DoesIxFunReturnAtMostOne BadlyIndexed String = 'AtMostOne
 
 type BadlyIndexeds = IxSet '[String] BadlyIndexed
 
 instance Indexed MultiIndex String where
   ixFun x = case x of MultiIndex s _ _ _ _ -> [s]; MultiIndexSubset _ _ s -> [s]
+  type DoesIxFunReturnAtMostOne MultiIndex String = 'AtMostOne
 
 instance Indexed MultiIndex Int where
   ixFun x = case x of MultiIndex _ i _ m _ -> i : maybeToList m; MultiIndexSubset i _ _ -> [i]
+  type DoesIxFunReturnAtMostOne MultiIndex Int = 'NotNecessarilyAtMostOne
 
 instance Indexed MultiIndex Integer where
   ixFun x = case x of MultiIndex _ _ i _ _ -> [i]; _ -> []
+  type DoesIxFunReturnAtMostOne MultiIndex Integer = 'AtMostOne
 
 instance Indexed MultiIndex Bool where
   ixFun x = case x of MultiIndex _ _ _ _ (Left b) -> [b]; MultiIndexSubset _ b _ -> [b]; _ -> []
+  type DoesIxFunReturnAtMostOne MultiIndex Bool = 'AtMostOne
 
 instance Indexed MultiIndex Char where
   ixFun x = case x of MultiIndex _ _ _ _ (Right c) -> [c]; _ -> []
+  type DoesIxFunReturnAtMostOne MultiIndex Char = 'AtMostOne
 
 type MultiIndexed = IxSet '[String, Int, Integer, Bool, Char] MultiIndex
 
 instance Indexed Triple Int where
   ixFun (Triple x y z) = [x, y, z]
+  type DoesIxFunReturnAtMostOne Triple Int = 'NotNecessarilyAtMostOne
 
 type Triples = IxSet '[Int] Triple
 
 instance Indexed Foo String where
   ixFun foo = [fooCalcs foo]
+  type DoesIxFunReturnAtMostOne Foo String = 'AtMostOne
 
 instance Indexed Foo Int where
   ixFun (Foo _ i) = [i]
+  type DoesIxFunReturnAtMostOne Foo Int = 'AtMostOne
 
 type Foos = IxSet '[String, Int] Foo
 
 instance Indexed S Int where
   ixFun (S x) = [length x]
+  type DoesIxFunReturnAtMostOne S Int = 'AtMostOne
 
 instance Indexed J1 Int where
   ixFun (J1 i _) = [i]
+  type DoesIxFunReturnAtMostOne J1 Int = 'AtMostOne
 
 instance Indexed J1 String where
   ixFun (J1 _ s) = [s]
+  type DoesIxFunReturnAtMostOne J1 String = 'AtMostOne
 
 instance Indexed J2 Int where
   ixFun (J2 i _ _) = [i]
+  type DoesIxFunReturnAtMostOne J2 Int = 'AtMostOne
 
 instance Indexed J2 String where
   ixFun (J2 _ s _) = [s]
+  type DoesIxFunReturnAtMostOne J2 String = 'AtMostOne
 
 type J1s = IxSet '[Int, String] J1
 

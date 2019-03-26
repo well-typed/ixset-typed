@@ -6,6 +6,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -113,6 +114,7 @@ module Data.IxSet.Typed
      -- ** Declaring indices
      Ix(),
      Indexed(..),
+     ReturnAtMostOne(..),
      MkEmptyIxList(),
 
      -- * Changes to set
@@ -199,6 +201,7 @@ import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as MM
 import Data.Maybe (fromMaybe)
 import Data.Monoid (Monoid (mappend, mempty))
+import Data.Proxy
 import Data.SafeCopy (SafeCopy (..), contain, safeGet, safePut)
 import Data.Semigroup (Semigroup (..))
 import Data.Set (Set)
@@ -413,11 +416,30 @@ instance MkEmptyIxList '[] where
 instance MkEmptyIxList ixs => MkEmptyIxList (ix ': ixs) where
   mkEmptyIxList = (Ix Map.empty) ::: mkEmptyIxList
 
+-- | A type-level annotation for the user to specify whether a particular
+-- 'ixFun' function in fact returns at most one index.
+data ReturnAtMostOne = AtMostOne | NotNecessarilyAtMostOne
+
+type family MaybeOrList (a :: ReturnAtMostOne) :: * -> * where
+  MaybeOrList 'AtMostOne = Maybe
+  MaybeOrList 'NotNecessarilyAtMostOne = []
+
 -- | An 'Indexed' class asserts that it is possible to extract indices of type
 -- @ix@ from a type @a@. Provided function should return a list of indices where
 -- the value should be found. There are no predefined instances for 'Indexed'.
-class Indexed a ix where
+class ReflectIxFunAnnotation (DoesIxFunReturnAtMostOne a ix) => Indexed a ix where
   ixFun :: a -> [ix]
+
+  type DoesIxFunReturnAtMostOne a ix :: ReturnAtMostOne
+
+class ReflectIxFunAnnotation (a :: ReturnAtMostOne) where
+  reflectAnnotation :: Proxy (a :: ReturnAtMostOne) -> ReturnAtMostOne
+
+instance ReflectIxFunAnnotation 'AtMostOne where
+  reflectAnnotation _ = AtMostOne
+
+instance ReflectIxFunAnnotation 'NotNecessarilyAtMostOne where
+  reflectAnnotation _ = NotNecessarilyAtMostOne
 
 --------------------------------------------------------------------------
 -- Modification of 'IxSet's
@@ -479,10 +501,13 @@ insertList xs (IxSet a indexes) = IxSet (List.foldl' (\ b x -> Set.insert x b) a
 fromMapOfSets :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
               => Map ix (Set a) -> IxSet ixs a
 fromMapOfSets partialindex =
-    IxSet a (mapAt updateh updatet mkEmptyIxList)
+    IxSet a (mapAt (case reflectAnnotation (Proxy :: Proxy (DoesIxFunReturnAtMostOne a ix)) of AtMostOne -> updatehSimple; _ -> updateh) updatet mkEmptyIxList)
   where
     a :: Set a
     a = Set.unions (Map.elems partialindex)
+
+    updatehSimple :: Ix ix a -> Ix ix a
+    updatehSimple (Ix _) = Ix partialindex
 
     -- Update function for the index corresponding to partialindex.
     updateh :: Indexed a ix => Ix ix a -> Ix ix a
@@ -823,6 +848,8 @@ newtype Joined a b = Joined (a, b) deriving (Show, Read, Eq, Ord)
 
 instance (Indexed a ix, Indexed b ix) => Indexed (Joined a b) ix where
   ixFun (Joined (a, b)) = ixFun a <> ixFun b
+
+  type DoesIxFunReturnAtMostOne (Joined a b) ix = 'NotNecessarilyAtMostOne
 
 -- | Perform an inner join between two tables using a specific index. The
 -- expression @'innerJoinUsing' s1 s2 (Proxy :: Proxy t)@ is similar in purpose
