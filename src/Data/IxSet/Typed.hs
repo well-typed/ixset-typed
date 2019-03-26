@@ -9,6 +9,7 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -115,6 +116,7 @@ module Data.IxSet.Typed
      Ix(),
      Indexed(..),
      ReturnAtMostOne(..),
+     IxFunResult(..),
      MkEmptyIxList(),
 
      -- * Changes to set
@@ -199,7 +201,7 @@ import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as MM
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, maybeToList)
 import Data.Monoid (Monoid (mappend, mempty))
 import Data.Proxy
 import Data.SafeCopy (SafeCopy (..), contain, safeGet, safePut)
@@ -424,11 +426,15 @@ type family MaybeOrList (a :: ReturnAtMostOne) :: * -> * where
   MaybeOrList 'AtMostOne = Maybe
   MaybeOrList 'NotNecessarilyAtMostOne = []
 
+data IxFunResult a ix where
+  One :: (DoesIxFunReturnAtMostOne a ix ~ 'AtMostOne) => (a -> Maybe ix) -> IxFunResult a ix
+  More :: (DoesIxFunReturnAtMostOne a ix ~ 'NotNecessarilyAtMostOne) => (a -> [ix]) -> IxFunResult a ix
+
 -- | An 'Indexed' class asserts that it is possible to extract indices of type
 -- @ix@ from a type @a@. Provided function should return a list of indices where
 -- the value should be found. There are no predefined instances for 'Indexed'.
 class ReflectIxFunAnnotation (DoesIxFunReturnAtMostOne a ix) => Indexed a ix where
-  ixFun :: a -> [ix]
+  ixFun :: IxFunResult a ix
 
   type DoesIxFunReturnAtMostOne a ix :: ReturnAtMostOne
 
@@ -440,6 +446,11 @@ instance ReflectIxFunAnnotation 'AtMostOne where
 
 instance ReflectIxFunAnnotation 'NotNecessarilyAtMostOne where
   reflectAnnotation _ = NotNecessarilyAtMostOne
+
+ixFunList :: forall a ix . Indexed a ix => a -> [ix]
+ixFunList a = case ixFun @a @ix of
+  One f -> maybeToList (f a)
+  More f -> f a
 
 --------------------------------------------------------------------------
 -- Modification of 'IxSet's
@@ -465,7 +476,7 @@ change opS opI x (IxSet a indexes) = IxSet (opS x a) v
     update (Ix index) = Ix index'
       where
         ds :: [ix]
-        ds = ixFun x
+        ds = ixFunList x
         ii :: forall k. Ord k => Map k (Set a) -> k -> Map k (Set a)
         ii m dkey = opI dkey x m
         index' :: Map ix (Set a)
@@ -482,7 +493,7 @@ insertList xs (IxSet a indexes) = IxSet (List.foldl' (\ b x -> Set.insert x b) a
     update (Ix index) = Ix index'
       where
         dss :: [(ix, a)]
-        dss = [(k, x) | x <- xs, k <- ixFun x]
+        dss = [(k, x) | x <- xs, k <- ixFunList x]
 
         index' :: Map ix (Set a)
         index' = Ix.insertList dss index
@@ -514,7 +525,7 @@ fromMapOfSets partialindex =
     updateh (Ix _) = Ix ix
       where
         dss :: [(ix, a)]
-        dss = [(k, x) | x <- Set.toList a, k <- ixFun x, not (Map.member k partialindex)]
+        dss = [(k, x) | x <- Set.toList a, k <- ixFunList x, not (Map.member k partialindex)]
 
         ix :: Map ix (Set a)
         ix = Ix.insertList dss partialindex
@@ -524,7 +535,7 @@ fromMapOfSets partialindex =
     updatet (Ix _) = Ix ix
       where
         dss :: [(ix', a)]
-        dss = [(k, x) | x <- Set.toList a, k <- ixFun x]
+        dss = [(k, x) | x <- Set.toList a, k <- ixFunList x]
 
         ix :: Map ix' (Set a)
         ix = Ix.fromList dss
@@ -585,7 +596,7 @@ fromSet set = IxSet set v
     v = mapIxList mkIx mkEmptyIxList
 
     mkIx :: forall ix. (Indexed a ix, Ord ix) => Ix ix a -> Ix ix a
-    mkIx (Ix _) = Ix (Ix.fromList [(k, x) | x <- Set.toList set, k <- ixFun x])
+    mkIx (Ix _) = Ix (Ix.fromList [(k, x) | x <- Set.toList set, k <- ixFunList x])
 
 -- | Converts a list to an 'IxSet'.
 fromList :: (Indexable ixs a) => [a] -> IxSet ixs a
@@ -847,7 +858,7 @@ getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)
 newtype Joined a b = Joined (a, b) deriving (Show, Read, Eq, Ord)
 
 instance (Indexed a ix, Indexed b ix) => Indexed (Joined a b) ix where
-  ixFun (Joined (a, b)) = ixFun a <> ixFun b
+  ixFun = More (\(Joined (a,b)) -> ixFunList a <> ixFunList b)
 
   type DoesIxFunReturnAtMostOne (Joined a b) ix = 'NotNecessarilyAtMostOne
 
