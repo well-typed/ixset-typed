@@ -10,6 +10,7 @@ module Data.IxSet.Typed.Tests where
 
 import Control.Exception
 import Control.Monad
+import Data.Either
 import Data.IxSet.Typed as IxSet
 import Data.Maybe
 import Data.Proxy
@@ -149,6 +150,8 @@ foox_set_abc :: FooXs
 foox_set_abc = insert foox_a $ insert foox_b $ insert foox_c $ IxSet.empty
 foox_set_cde :: FooXs
 foox_set_cde = insert foox_e $ insert foox_d $ insert foox_c $ IxSet.empty
+foox_set_a :: FooXs
+foox_set_a = insert foox_a IxSet.empty
 
 ixSetCheckSetMethods :: TestTree
 ixSetCheckSetMethods =
@@ -161,9 +164,19 @@ ixSetCheckSetMethods =
         Nothing @=? getOne foox_set_abc
     , testCase "getOneOr returns default" $
         Foo1 "" 44 @=? getOneOr (Foo1 "" 44) foox_set_abc
+    , testCase "getUnique with multiple results is error" $
+        isLeft (getUnique foox_set_abc) @? "Expected error from getUnique"
+    , testCase "getUnique with single result is ok" $
+        isRight (getUnique foox_set_a) @? "Expected Right"
+    , testCase "getUnique with no result is ok" $
+        isRightNothing (getUnique (IxSet.empty :: Foos)) @? "Expected Nothing"
     , testCase "toList returns 3 element list" $
         3 @=? length (toList foox_set_abc)
     ]
+
+isRightNothing :: Either SomeException (Maybe Foo) -> Bool
+isRightNothing (Right Nothing) = True
+isRightNothing _ = False
 
 isError :: a -> Assertion
 isError x = do

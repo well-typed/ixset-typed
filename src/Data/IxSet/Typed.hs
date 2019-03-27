@@ -115,12 +115,17 @@ module Data.IxSet.Typed
      Indexed(..),
      MkEmptyIxList(),
 
+     -- ** Exceptions
+     NotUniqueException(..),
+
      -- * Changes to set
      insert,
      insertList,
      delete,
      updateIx,
+     updateUnique,
      deleteIx,
+     deleteUnique,
      filter,
 
      -- * Creation
@@ -135,6 +140,7 @@ module Data.IxSet.Typed
      toDescList,
      getOne,
      getOneOr,
+     getUnique,
 
      -- * Size checking
      size,
@@ -187,7 +193,9 @@ import Prelude hiding (filter, null)
 
 import Control.Arrow (first, second)
 import Control.DeepSeq
+import Control.Monad.Catch
 import Data.Coerce
+import Data.Either
 import Data.Foldable (Foldable)
 import qualified Data.Foldable as Fold
 import Data.Functor.Const
@@ -393,6 +401,13 @@ instance Foldable (IxSet ixs) where
   toList    = toList
   null      = null
 
+-- | Thrown when a function expecting a single unique value encounters
+-- multiple values
+
+data NotUniqueException = NotUnique
+  deriving (Show)
+
+instance Exception NotUniqueException
 
 --------------------------------------------------------------------------
 -- 'IxSet' construction
@@ -514,22 +529,57 @@ insert = change Set.insert Ix.insert
 delete :: Indexable ixs a => a -> IxSet ixs a -> IxSet ixs a
 delete = change Set.delete Ix.delete
 
+-- | Internal implementation for update* family
+updateIx' :: (Indexable ixs a, IsIndexOf ix ixs, MonadThrow m)
+         => (IxSet ixs a -> m (Maybe a)) -> ix -> a -> IxSet ixs a -> m (IxSet ixs a)
+updateIx' get i new ixset = do
+  existing <- get $ ixset @= i
+  pure $ insert new $
+    maybe ixset (flip delete ixset) $
+    existing
+
+-- | Internal implementation for delete* family
+deleteIx' :: (Indexable ixs a, IsIndexOf ix ixs, MonadThrow m)
+         => (IxSet ixs a -> m (Maybe a)) -> ix -> IxSet ixs a -> m (IxSet ixs a)
+deleteIx' get i ixset = do
+  existing <- get $ ixset @= i
+  pure $ maybe ixset (flip delete ixset) $
+    existing
+
 -- | Will replace the item with the given index of type 'ix'.
 -- Only works if there is at most one item with that index in the 'IxSet'.
 -- Will not change 'IxSet' if you have more than one item with given index.
 updateIx :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> a -> IxSet ixs a -> IxSet ixs a
-updateIx i new ixset = insert new $
-                     maybe ixset (flip delete ixset) $
-                     getOne $ ixset @= i
+updateIx i new ixset = fromRight ixset $ updateIx' (Right . getOne) i new ixset
+
+-- | Will replace the item with the given index of type 'ix'.
+-- Only works if there is at most one item with that index in the 'IxSet'.
+-- Will throw if there is more than one item with given index.
+
+-- Throws: 'NotUniqueException
+
+updateUnique :: (Indexable ixs a, IsIndexOf ix ixs, MonadThrow m)
+         => ix -> a -> IxSet ixs a -> m (IxSet ixs a)
+updateUnique = updateIx' getUnique
 
 -- | Will delete the item with the given index of type 'ix'.
 -- Only works if there is at  most one item with that index in the 'IxSet'.
 -- Will not change 'IxSet' if you have more than one item with given index.
 deleteIx :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> IxSet ixs a -> IxSet ixs a
-deleteIx i ixset = maybe ixset (flip delete ixset) $
-                       getOne $ ixset @= i
+deleteIx i ixset = fromRight ixset $ deleteIx' (Right . getOne) i ixset
+
+-- | Will delete the item with the given index of type 'ix'.
+-- Only works if there is at  most one item with that index in the 'IxSet'.
+-- Will throw if there is more than one item with given index.
+
+-- Throws: 'NotUniqueException
+
+deleteUnique :: (Indexable ixs a, IsIndexOf ix ixs, MonadThrow m)
+         => ix -> IxSet ixs a -> m (IxSet ixs a)
+deleteUnique = deleteIx' getUnique
+
 
 -- | /O(n)/. Filter all elements that satisfy the predicate. In general, using
 -- indexing operations is preferred, so instead of using 'filter' you should
@@ -600,6 +650,15 @@ getOne ixset = case toList ixset of
 -- | Like 'getOne' with a user-provided default.
 getOneOr :: a -> IxSet ixs a -> a
 getOneOr def = fromMaybe def . getOne
+
+-- | Like getOne, but error if multiple items exist
+
+-- Throws: 'NotUniqueException
+getUnique :: MonadThrow m => IxSet ixs a -> m (Maybe a)
+getUnique ixset = case toList ixset of
+                    [x] -> pure $ Just x
+                    [] -> pure Nothing
+                    _ -> throwM NotUnique
 
 -- | Return 'True' if the 'IxSet' is empty, 'False' otherwise.
 null :: IxSet ixs a -> Bool
