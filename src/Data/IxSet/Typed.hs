@@ -138,6 +138,7 @@ module Data.IxSet.Typed
      toList,
      toAscList,
      toDescList,
+     toFullDescList,
      getOne,
      getOneOr,
      getUnique,
@@ -173,6 +174,7 @@ module Data.IxSet.Typed
      groupBy,
      groupAscBy,
      groupDescBy,
+     groupFullDescBy,
      indexKeys,
 
      -- * Lenses and optics
@@ -626,7 +628,9 @@ toList = Set.toList . toSet
 
 -- | Converts an 'IxSet' to its list of elements.
 --
--- List will be sorted in ascending order by the index 'ix'.
+-- List will be sorted in ascending order by the index 'ix'. When 'ix' values
+-- are equivalent, the values will be sorted in ascending order by their 'Ord'
+-- instance.
 --
 -- The list may contain duplicate entries if a single value produces multiple keys.
 toAscList :: forall proxy ix ixs a. IsIndexOf ix ixs => proxy ix -> IxSet ixs a -> [a]
@@ -634,11 +638,23 @@ toAscList _ ixset = concatMap snd (groupAscBy ixset :: [(ix, [a])])
 
 -- | Converts an 'IxSet' to its list of elements.
 --
--- List will be sorted in descending order by the index 'ix'.
+-- List will be sorted in descending order by the index 'ix'. When 'ix' values
+-- are equivalent, the values will be sorted in /ascending/ order by their 'Ord'
+-- instance.
 --
 -- The list may contain duplicate entries if a single value produces multiple keys.
 toDescList :: forall proxy ix ixs a. IsIndexOf ix ixs => proxy ix -> IxSet ixs a -> [a]
 toDescList _ ixset = concatMap snd (groupDescBy ixset :: [(ix, [a])])
+
+-- | Converts an 'IxSet' to its list of elements.
+--
+-- List will be sorted in descending order by the index 'ix'. When 'ix' values
+-- are equivalent, the values will be sorted in descending order by their 'Ord'
+-- instance.
+--
+-- The list may contain duplicate entries if a single value produces multiple keys.
+toFullDescList :: forall proxy ix ixs a. IsIndexOf ix ixs => proxy ix -> IxSet ixs a -> [a]
+toFullDescList _ ixset = concatMap snd (groupFullDescBy ixset :: [(ix, [a])])
 
 -- | If the 'IxSet' is a singleton it will return the one item stored in it.
 -- If 'IxSet' is empty or has many elements this function returns 'Nothing'.
@@ -825,16 +841,23 @@ groupAscBy (IxSet _ indexes) = f (access indexes)
 -- type inference.
 --
 -- The resulting list will be sorted in descending order by 'ix'.
---
--- NOTE: The values in @[a]@ are currently sorted in ascending
--- order. But this may change if someone bothers to add
--- 'Set.toDescList'. So do not rely on the sort order of the
--- resulting list.
+-- The values in @[a]@ will, however, be sorted in /ascending/ order.
 groupDescBy :: IsIndexOf ix ixs =>  IxSet ixs a -> [(ix, [a])]
 groupDescBy (IxSet _ indexes) = f (access indexes)
   where
     f :: Ix ix a -> [(ix, [a])]
     f (Ix index) = map (second Set.toAscList) (Map.toDescList index)
+
+-- | Returns lists of elements paired with the indices determined by
+-- type inference.
+--
+-- The resulting list will be sorted in descending order by 'ix'.
+-- The values in @[a]@ will also be sorted in descending order.
+groupFullDescBy :: IsIndexOf ix ixs =>  IxSet ixs a -> [(ix, [a])]
+groupFullDescBy (IxSet _ indexes) = f (access indexes)
+  where
+    f :: Ix ix a -> [(ix, [a])]
+    f (Ix index) = map (second Set.toDescList) (Map.toDescList index)
 
 -- | A function for building up selectors on 'IxSet's.  Used in the
 -- various get* functions.  The set must be indexed over key type,
