@@ -493,13 +493,45 @@ insertList xs (IxSet a indexes) = IxSet (List.foldl' (\ b x -> Set.insert x b) a
 -- could reuse originalindex as it is. But there can be more, so we need to
 -- add remaining ones (in updateh). Anyway we try to reuse old structure and
 -- keep new allocations low as much as possible.
+fromMapOfSet :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
+              => ix -> Set a -> IxSet ixs a
+fromMapOfSet v a =
+    IxSet a (mapAt updateh updatet mkEmptyIxList)
+  where
+
+    -- Update function for the index corresponding to partialindex.
+    updateh :: Indexed a ix => Ix ix a -> Ix ix a
+    updateh (Ix _) = Ix ix
+      where
+        dss :: [(ix, a)]
+        dss = [(k, x) | x <- Set.toList a, k <- ixFun x, k /= v ]
+
+        ix :: Map ix (Set a)
+        ix = Ix.insertList dss (Map.singleton v a) 
+
+
+
+    -- Update function for all other indices.
+    updatet :: forall ix'. (Indexed a ix', Ord ix') => Ix ix' a -> Ix ix' a
+    updatet (Ix _) = Ix ix
+      where
+        dss :: [(ix', a)]
+        dss = [(k, x) | x <- Set.toList a, k <- ixFun x]
+
+        ix :: Map ix' (Set a)
+        ix = Ix.fromList dss
+
+
 fromMapOfSets :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
               => Map ix (Set a) -> IxSet ixs a
 fromMapOfSets partialindex =
     IxSet a (mapAt updateh updatet mkEmptyIxList)
   where
     a :: Set a
-    a = Set.unions (Map.elems partialindex)
+    a = nonEmptyFoldl (Map.elems partialindex)
+    nonEmptyFoldl (i:xs) = List.foldl' Set.union i xs
+    nonEmptyFoldl  [] = Set.empty
+
 
     -- Update function for the index corresponding to partialindex.
     updateh :: Indexed a ix => Ix ix a -> Ix ix a
@@ -697,8 +729,10 @@ infixr 5 |||
 
 -- | Takes the union of the two 'IxSet's.
 union :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
-union (IxSet a1 x1) (IxSet a2 x2) =
-  IxSet (Set.union a1 a2)
+union (IxSet a1 x1) (IxSet a2 x2) 
+  | Set.null a1 = IxSet a2 x2
+  | Set.null a2 = IxSet a1 x1
+  | otherwise = IxSet (Set.union a1 a2)
     (zipWithIxList' (\ (Ix a) (Ix b) -> Ix (Ix.union a b)) x1 x2)
 -- TODO: function is taken from the first
 
@@ -761,19 +795,18 @@ ix @>=<= (v1,v2) = getLTE v2 $ getGTE v1 ix
 -- | Creates the subset that has an index in the provided list.
 (@+) :: (Indexable ixs a, IsIndexOf ix ixs)
      => IxSet ixs a -> [ix] -> IxSet ixs a
-ix @+ list = List.foldl' union empty $ map (ix @=) list
+ix @+ [e] = ix @= e
+ix @+ list = List.foldl' union  empty $  map (ix @=) list
 
 -- | Creates the subset that matches all the provided indices.
 (@*) :: (Indexable ixs a, IsIndexOf ix ixs)
      => IxSet ixs a -> [ix] -> IxSet ixs a
+ix @* [e]= ix @=  e
 ix @* list = List.foldl' intersection ix $ map (ix @=) list
 
 -- | Returns the subset with an index equal to the provided key.  The
 -- set must be indexed over key type, doing otherwise results in
 -- a compile error.
-getEQ :: (Indexable ixs a, IsIndexOf ix ixs)
-      => ix -> IxSet ixs a -> IxSet ixs a
-getEQ = getOrd EQ
 
 -- | Returns the subset with an index less than the provided key.  The
 -- set must be indexed over key type, doing otherwise results in
@@ -866,8 +899,16 @@ groupFullDescBy (IxSet _ indexes) = f (access indexes)
 getOrd :: (Indexable ixs a, IsIndexOf ix ixs)
        => Ordering -> ix -> IxSet ixs a -> IxSet ixs a
 getOrd LT = getOrd2 True False False
-getOrd EQ = getOrd2 False True False
+getOrd EQ = getEQ
 getOrd GT = getOrd2 False False True
+
+getEQ :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
+        => ix -> IxSet ixs a -> IxSet ixs a
+getEQ v (IxSet _ ixs) =  f (access ixs)
+  where 
+    f :: Ix ix a -> IxSet ixs a
+    f (Ix index) = maybe empty (fromMapOfSet v) $ Map.lookup v index 
+
 
 -- | A function for building up selectors on 'IxSet's.  Used in the
 -- various get* functions.  The set must be indexed over key type,
