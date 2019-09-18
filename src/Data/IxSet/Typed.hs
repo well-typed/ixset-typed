@@ -126,6 +126,7 @@ module Data.IxSet.Typed
      updateUnique,
      deleteIx,
      deleteUnique,
+     alterIx,
      filter,
 
      -- * Creation
@@ -589,6 +590,19 @@ deleteIx' get i ixset = do
 updateIx :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> a -> IxSet ixs a -> IxSet ixs a
 updateIx i new ixset = fromRight ixset $ updateIx' (Right . getOne) i new ixset
+
+
+-- | Will replace the item with the given index of type 'ix'.
+-- Only works if there is at most one item with that index in the 'IxSet'.
+-- Will not change 'IxSet' if you have more than one item with given index.
+alterIx :: (Indexable ixs a, IsIndexOf ix ixs)
+         => ix -> (a -> Maybe a)  -> IxSet ixs a -> IxSet ixs a
+alterIx i f ixset =
+  let existing = getOne $ ixset @= i
+      new = f =<< existing
+  in (maybe id insert new) $
+    maybe ixset (flip delete ixset) $
+    existing
 
 -- | Will replace the item with the given index of type 'ix'.
 -- Only works if there is at most one item with that index in the 'IxSet'.
