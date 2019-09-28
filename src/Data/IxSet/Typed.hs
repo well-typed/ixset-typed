@@ -393,7 +393,7 @@ instance (Indexable ixs a, Show a) => Show (IxSet ixs a) where
 instance (Indexable ixs a, Read a) => Read (IxSet ixs a) where
   readsPrec n = map (first fromSet) . readsPrec n
 
-instance (Indexable ixs a, SafeCopy a) => SafeCopy (IxSet ixs a) where
+instance (Typeable ixs, Indexable ixs a, Typeable a, SafeCopy a) => SafeCopy (IxSet ixs a) where
   putCopy = contain . safePut . toList
   getCopy = contain $ fmap fromList safeGet
 
