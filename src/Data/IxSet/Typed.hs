@@ -212,6 +212,7 @@ import Data.SafeCopy (SafeCopy (..), contain, safeGet, safePut)
 import Data.Semigroup (Semigroup (..))
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Typeable
 import GHC.Exts (Constraint)
 import Lens.Micro (Getting, Traversal', Lens', to, lens, each)
 
@@ -369,7 +370,7 @@ instance (Indexable ixs a, Show a) => Show (IxSet ixs a) where
 instance (Indexable ixs a, Read a) => Read (IxSet ixs a) where
   readsPrec n = map (first fromSet) . readsPrec n
 
-instance (Indexable ixs a, SafeCopy a) => SafeCopy (IxSet ixs a) where
+instance (Typeable ixs, Typeable a, Indexable ixs a, SafeCopy a) => SafeCopy (IxSet ixs a) where
   putCopy = contain . safePut . toList
   getCopy = contain $ fmap fromList safeGet
 
