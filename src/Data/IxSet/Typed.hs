@@ -180,7 +180,7 @@ module Data.IxSet.Typed
      -- * Lenses and optics
      atPrimaryKey,
      ixPrimaryKey,
-     gettingIx,
+     ixAt,
      ixEQ,
 
      -- * Joins
@@ -214,7 +214,8 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Typeable
 import GHC.Exts (Constraint)
-import Lens.Micro (Getting, Traversal', Lens', to, lens, each)
+import Lens.Micro (Traversal', Lens', to, lens, each, folded)
+import Lens.Micro.Contra (Fold, Getter, fromSimpleFold, fromSimpleGetter)
 
 --------------------------------------------------------------------------
 -- The main 'IxSet' datatype.
@@ -508,7 +509,7 @@ fromMapOfSet v a =
         dss = [(k, x) | x <- Set.toList a, k <- ixFun x, k /= v ]
 
         ix :: Map ix (Set a)
-        ix = Ix.insertList dss (Map.singleton v a) 
+        ix = Ix.insertList dss (Map.singleton v a)
 
 
 
@@ -730,7 +731,7 @@ infixr 5 |||
 
 -- | Takes the union of the two 'IxSet's.
 union :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
-union (IxSet a1 x1) (IxSet a2 x2) 
+union (IxSet a1 x1) (IxSet a2 x2)
   | Set.null a1 = IxSet a2 x2
   | Set.null a2 = IxSet a1 x1
   | otherwise = IxSet (Set.union a1 a2)
@@ -906,9 +907,9 @@ getOrd GT = getOrd2 False False True
 getEQ :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
         => ix -> IxSet ixs a -> IxSet ixs a
 getEQ v (IxSet _ ixs) =  f (access ixs)
-  where 
+  where
     f :: Ix ix a -> IxSet ixs a
-    f (Ix index) = maybe empty (fromMapOfSet v) $ Map.lookup v index 
+    f (Ix index) = maybe empty (fromMapOfSet v) $ Map.lookup v index
 
 
 -- | A function for building up selectors on 'IxSet's.  Used in the
@@ -994,14 +995,14 @@ ixPrimaryKey :: (Indexable ixs a, IsIndexOf ix ixs) => ix -> Traversal' (IxSet i
 ixPrimaryKey i = atPrimaryKey i . each
 {-# INLINE ixPrimaryKey #-}
 
--- | A getter to retrieve a 'Set' at the specified index.
-gettingIx :: (Indexable ixs a, IsIndexOf ix ixs) => ix -> Getting r (IxSet ixs a) (Set a)
-gettingIx i = ixEQ i . to toSet
-{-# INLINE gettingIx #-}
+-- | A fold over items at an index
+ixAt :: (Indexable ixs a, IsIndexOf ix ixs) => ix -> Fold (IxSet ixs a) a
+ixAt i = fromSimpleFold $ ixEQ i . folded
+{-# INLINE ixAt #-}
 
 -- | A simple getter for getEQ
-ixEQ :: (Indexable ixs a, IsIndexOf ix ixs) => ix -> Getting r (IxSet ixs a) (IxSet ixs a)
-ixEQ = to . getEQ
+ixEQ :: (Indexable ixs a, IsIndexOf ix ixs) => ix -> Getter (IxSet ixs a) (IxSet ixs a)
+ixEQ ix = fromSimpleGetter $ to (getEQ ix)
 {-# INLINE ixEQ #-}
 
 -- Optimization todo:
