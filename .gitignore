@@ -2,4 +2,7 @@
 cabal.sandbox.config
 dist
 *~
-ixset-*
+.stack-work
+dist-newstyle
+dist
+.ghc.environment.*

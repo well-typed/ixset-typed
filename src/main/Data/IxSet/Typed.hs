@@ -153,6 +153,7 @@ module Data.IxSet.Typed
      (|||),
      union,
      intersection,
+     difference,
 
      -- * Indexing
      (@=),
@@ -177,13 +178,6 @@ module Data.IxSet.Typed
      groupDescBy,
      groupFullDescBy,
      indexKeys,
-
-     -- * Lenses and optics
-     atPrimaryKey,
-     ixPrimaryKey,
-     ixEQSet,
-     ixAt,
-     ixEQ,
 
      -- * Joins
      Joined(..),
@@ -216,8 +210,6 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Typeable
 import GHC.Exts (Constraint)
-import Lens.Micro (Traversal', Lens', to, lens, each, folded)
-import Lens.Micro.Contra (Fold, Getter, fromSimpleFold, fromSimpleGetter)
 
 --------------------------------------------------------------------------
 -- The main 'IxSet' datatype.
@@ -758,6 +750,11 @@ intersection :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 intersection (IxSet a1 x1) (IxSet a2 x2) =
   IxSet (Set.intersection a1 a2)
     (zipWithIxList' (\ (Ix a) (Ix b) -> Ix (Ix.intersection a b)) x1 x2)
+
+difference :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
+difference (IxSet a1 x1) (IxSet a2 x2) =
+  IxSet (Set.difference a1 a2)
+    (zipWithIxList' (\(Ix a) (Ix b) -> Ix (Ix.difference a b)) x1 x2)
 -- TODO: function is taken from the first
 
 --------------------------------------------------------------------------
@@ -982,49 +979,6 @@ innerJoinUsing (IxSet _ ixs1) (IxSet _ ixs2) _ = f (access ixs1) (access ixs2)
     f (Ix m1) (Ix m2) =
       fromMapOfSets
         (MM.merge MM.dropMissing MM.dropMissing (MM.zipWithMatched (\_ a b -> Set.mapMonotonic Joined (Set.cartesianProduct a b))) m1 m2)
-
---------------------------------------------------------------------------
--- Lenses and other optics
---------------------------------------------------------------------------
-
--- | Assuming the given index is a /primary key/, constructs a lens to access
--- the value associated with the primary key. The getting operation uses 'getEQ'
--- and 'getOne' and the setting operation uses 'updateIx' or 'deleteIx'.
--- Therefore, this /will/ violate lens laws if the given index is not actually a
--- primary key.
-atPrimaryKey :: (Indexable ixs a, IsIndexOf ix ixs) => ix -> Lens' (IxSet ixs a) (Maybe a)
-atPrimaryKey i = lens sa sbt
-  where
-    sa = getOne . getEQ i
-    {-# INLINE sa #-}
-
-    sbt s Nothing = deleteIx i s
-    sbt s (Just b) = updateIx i b s
-    {-# INLINE sbt #-}
-{-# INLINE atPrimaryKey #-}
-
--- | Assuming the given index is a /primary key/, constructs a traversal to
--- access the value associated with the primary key. This will not work when the
--- provided index is not actually a primary key.
-ixPrimaryKey :: (Indexable ixs a, IsIndexOf ix ixs) => ix -> Traversal' (IxSet ixs a) a
-ixPrimaryKey i = atPrimaryKey i . each
-{-# INLINE ixPrimaryKey #-}
-
--- | A getter to retrieve a 'Set' at the specified index.
--- Zero cost, as opposed to toSetOf ixAt
-ixEQSet :: (Indexable ixs a, IsIndexOf ix ixs) => ix -> Getter (IxSet ixs a) (Set a)
-ixEQSet i = fromSimpleGetter $ ixEQ i . to toSet
-{-# INLINE ixEQSet #-}
-
--- | A fold over items at an index
-ixAt :: (Indexable ixs a, IsIndexOf ix ixs) => ix -> Fold (IxSet ixs a) a
-ixAt i = fromSimpleFold $ ixEQ i . folded
-{-# INLINE ixAt #-}
-
--- | A simple getter for getEQ
-ixEQ :: (Indexable ixs a, IsIndexOf ix ixs) => ix -> Getter (IxSet ixs a) (IxSet ixs a)
-ixEQ ix = fromSimpleGetter $ to (getEQ ix)
-{-# INLINE ixEQ #-}
 
 -- Optimization todo:
 --

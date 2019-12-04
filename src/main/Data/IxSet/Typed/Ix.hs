@@ -7,6 +7,7 @@ module Data.IxSet.Typed.Ix
     , deleteList
     , union
     , intersection
+    , difference
     , filterFrom
     )
     where
@@ -15,6 +16,7 @@ import Control.DeepSeq
 import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map.Strict as Map
+import Data.Map.Merge.Strict
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Prelude hiding (filter)
@@ -71,6 +73,13 @@ intersection :: (Ord a, Ord k)
              => Map k (Set a) -> Map k (Set a) -> Map k (Set a)
 intersection index1 index2 = Map.filter (not . Set.null) $
                              Map.intersectionWith Set.intersection index1 index2
+
+-- | Takes the difference of two sets.
+difference :: (Ord a, Ord k)
+             => Map k (Set a) -> Map k (Set a) -> Map k (Set a)
+difference index1 index2 = Map.differenceWith diff index1 index2
+  where diff set1 set2 = let diffSet = Set.difference set1 set2 in
+                            if Set.null diffSet then Nothing else Just diffSet
 
 -- | Filters the sets by restricting to the elements in the provided set.
 filterFrom :: (Ord a) => Set a -> Map k (Set a) -> Map k (Set a)
