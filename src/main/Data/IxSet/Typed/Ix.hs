@@ -16,7 +16,6 @@ import Control.DeepSeq
 import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map.Strict as Map
-import Data.Map.Merge.Strict
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Prelude hiding (filter)
