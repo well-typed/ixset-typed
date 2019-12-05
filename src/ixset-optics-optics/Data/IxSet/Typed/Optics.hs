@@ -1,11 +1,18 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Data.IxSet.Typed.Optics where
+module Data.IxSet.Typed.Optics(
+  atPrimaryKey,
+  ixPrimaryKey,
+  ixKey,
+  ixKeys,
+  atKey,
+  asSet
+) where
 
 import Control.Applicative
 import Data.IxSet.Typed as IS
-import qualified Data.Set as Set
+import Data.Set (Set)
 import Optics
 
 type GetIdx ixs ix a = (Indexable ixs a, IsIndexOf ix ixs)
@@ -55,6 +62,6 @@ atKey k = lens (getEQ k) (\ixs b -> IS.union b $ IS.difference ixs (getEQ k ixs)
 {-# INLINE atKey #-}
 
 -- | Isomorphism from IxSet to Set
-asSet :: Indexable ixs a => Iso' (IxSet ixs a) (Set.Set a)
+asSet :: Indexable ixs a => Iso' (IxSet ixs a) (Set a)
 asSet = iso toSet fromSet
 {-# INLINE asSet #-}

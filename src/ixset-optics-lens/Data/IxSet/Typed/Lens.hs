@@ -4,12 +4,13 @@
 module Data.IxSet.Typed.Lens(
   atPrimaryKey,
   ixPrimaryKey,
-  eqKey,
-  eqKeys,
-  overEqKey,
+  ixKey,
+  ixKeys,
+  atKey,
   asSet
 ) where
 
+import Control.Applicative
 import Control.Lens
 import Data.IxSet.Typed as IS
 import Data.Set (Set)
@@ -39,23 +40,28 @@ ixPrimaryKey :: GetIdx ixs ix a => ix -> Traversal' (IxSet ixs a) a
 ixPrimaryKey i = atPrimaryKey i . _Just
 {-# INLINE ixPrimaryKey #-}
 
--- | A fold over items at an index
-eqKey :: GetIdx ixs ix a => ix -> Fold (IxSet ixs a) a
-eqKey = folding . getEQ
-{-# INLINE eqKey #-}
+traverseWith :: IS.Indexable ixs a => (IxSet ixs a -> IxSet ixs a) -> Traversal' (IxSet ixs a) a
+traverseWith ixsFilter f ixs = let sa = ixsFilter ixs in foldr (liftA2 IS.insert . f) (pure $ IS.difference ixs sa) sa
+{-# INLINE traverseWith #-}
 
--- | A fold over items at indexes
-eqKeys :: GetIdx ixs ix a => [ix] -> Fold (IS.IxSet ixs a) a
-eqKeys k = folding (IS.@+ k)
-{-# INLINE eqKeys #-}
+-- | A traversal over items at an idx
+-- It is only a valid traversal if the Eq instance of 'a' is a good citizen, particularly that it expresses substitutivity.
+ixKey :: GetIdx ixs ix a => ix -> Traversal' (IxSet ixs a) a
+ixKey = traverseWith . getEQ
+{-# INLINE ixKey #-}
 
--- | A simple getter for getEQ. Returns a filtered IxSet
-overEqKey :: GetIdx ixs ix a => ix -> Getter (IxSet ixs a) (IxSet ixs a)
-overEqKey = to . getEQ
-{-# INLINE overEqKey #-}
+-- | A traversal over items at indexes
+-- It is only a valid traversal if the Eq instance of 'a' is a good citizen, particularly that it expresses substitutivity.
+ixKeys :: GetIdx ixs ix a => [ix] -> Traversal' (IS.IxSet ixs a) a
+ixKeys = traverseWith . flip (IS.@+)
+{-# INLINE ixKeys #-}
 
--- | Turn an IxSet into a Set
-asSet :: Getter (IxSet ixs a) (Set a)
-asSet = to toSet
+-- | Get or set the contained IxSet at a given index.
+atKey :: GetIdx ixs ix a => ix -> Lens' (IS.IxSet ixs a) (IS.IxSet ixs a)
+atKey k = lens (getEQ k) (\ixs b -> IS.union b $ IS.difference ixs (getEQ k ixs))
+{-# INLINE atKey #-}
+
+-- | Isomorphism from IxSet to Set
+asSet :: IS.Indexable ixs a => Iso' (IxSet ixs a) (Set a)
+asSet = iso toSet fromSet
 {-# INLINE asSet #-}
-
