@@ -1,5 +1,0 @@
-resolver: lts-10.10
-packages:
-- .
-extra-deps:
-- containers-0.5.11.0
