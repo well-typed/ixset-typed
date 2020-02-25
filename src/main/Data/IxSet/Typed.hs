@@ -168,6 +168,7 @@ module Data.IxSet.Typed
      (@+),
      (@*),
      getEQ,
+     lookup,
      getLT,
      getGT,
      getLTE,
@@ -188,7 +189,7 @@ module Data.IxSet.Typed
 )
 where
 
-import Prelude hiding (filter, null)
+import Prelude hiding (filter, null, lookup)
 
 import Control.Arrow (first, second)
 import Control.DeepSeq
@@ -588,13 +589,13 @@ updateIx i new ixset = fromRight ixset $ updateIx' (Right . getOne) i new ixset
 -- Only works if there is at most one item with that index in the 'IxSet'.
 -- Will not change 'IxSet' if you have more than one item with given index.
 alterIx :: (Indexable ixs a, IsIndexOf ix ixs)
-         => ix -> (a -> Maybe a)  -> IxSet ixs a -> IxSet ixs a
+         => ix -> (Maybe a -> Maybe a)  -> IxSet ixs a -> (IxSet ixs a, (Maybe a, Maybe a))
 alterIx i f ixset =
-  let existing = getOne $ ixset @= i
-      new = f =<< existing
-  in (maybe id insert new) $
+  let existing = lookup i ixset
+      new = f existing
+  in ((maybe id insert new) $
     maybe ixset (flip delete ixset) $
-    existing
+    existing,(existing,new))
 
 -- | Will replace the item with the given index of type 'ix'.
 -- Only works if there is at most one item with that index in the 'IxSet'.
@@ -923,6 +924,14 @@ getEQ v (IxSet _ ixs) =  f (access ixs)
     f :: Ix ix a -> IxSet ixs a
     f (Ix index) = maybe empty (fromMapOfSet v) $ Map.lookup v index
 
+lookup :: forall ixs ix a. IsIndexOf ix ixs
+        => ix -> IxSet ixs a -> Maybe a
+lookup v (IxSet _ ixs) =  f (access ixs)
+  where
+    f :: Ix ix a -> Maybe a
+    f (Ix index) = case Set.toList <$> (Map.lookup v index) of
+                        Just [x] -> Just x
+                        _ -> Nothing
 
 -- | A function for building up selectors on 'IxSet's.  Used in the
 -- various get* functions.  The set must be indexed over key type,
