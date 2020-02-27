@@ -462,6 +462,7 @@ change opS opI x (IxSet a indexes) = IxSet (opS x a) v
         ii m dkey = opI dkey x m
         index' :: Map ix (Set a)
         index' = List.foldl' ii index ds
+{-# INLINE change #-}
 
 insertList :: forall ixs a. Indexable ixs a
            => [a] -> IxSet ixs a -> IxSet ixs a

@@ -47,7 +47,7 @@ library
   other-modules:
                      Data.IxSet.Typed.Ix
 
-  ghc-options:       -Wall -Wredundant-constraints
+  ghc-options:       -Wall -Wredundant-constraints -O2 -fdicts-strict
 
   default-language:  Haskell2010
 

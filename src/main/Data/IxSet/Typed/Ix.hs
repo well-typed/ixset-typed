@@ -59,11 +59,13 @@ delete k v index = Map.update remove k index
     where
     remove set = let set' = Set.delete v set
                  in if Set.null set' then Nothing else Just set'
+{-# INLINE delete #-}
 
 -- | Helper function to 'delete' a list of elements from a set.
 deleteList :: (Ord a, Ord k)
            => [(k,a)] -> Map k (Set a) -> Map k (Set a)
 deleteList xs index = List.foldl' (\m (k,v) -> delete k v m) index xs
+{-# INLINE deleteList #-}
 
 -- | Takes the union of two sets.
 union :: (Ord a, Ord k)
