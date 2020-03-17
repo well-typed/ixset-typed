@@ -185,6 +185,8 @@ module Data.IxSet.Typed
      innerJoinUsing,
 
      -- * Debugging and optimization
+     forceIndexesPar,
+     forceIndexesSeq,
      stats
 )
 where
@@ -209,6 +211,7 @@ import Data.SafeCopy (SafeCopy (..), contain, safeGet, safePut)
 import Data.Semigroup (Semigroup (..))
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Control.Parallel.Strategies
 import Data.Typeable
 import GHC.Exts (Constraint)
 
@@ -335,12 +338,24 @@ mapIxList _ Nil        = Nil
 mapIxList f (x ::: xs) = f x ::: mapIxList f xs
 
 -- | Map over an index list (spine-strict).
+mapIxListPar' :: (All Ord ixs, All (Indexed a) ixs)
+           =>
+                 -- ^ what to do with each index
+           IxList ixs a -> Eval (IxList ixs a)
+mapIxListPar'  Nil        = return Nil
+mapIxListPar'  (x ::: xs) = do
+  x' <- rparWith rseq x
+  xs' <- mapIxListPar' xs
+  return (x' ::: xs')
+
+-- | Map over an index list (spine-strict).
 mapIxList' :: (All Ord ixs, All (Indexed a) ixs)
            => (forall ix. (Indexed a ix, Ord ix) => Ix ix a -> Ix ix a)
                  -- ^ what to do with each index
            -> IxList ixs a -> IxList ixs a
 mapIxList' _ Nil        = Nil
 mapIxList' f (x ::: xs) = f x !::: mapIxList' f xs
+
 
 -- | Zip two index lists of compatible type (spine-strict).
 zipWithIxList' :: (All Ord ixs, All (Indexed a) ixs)
@@ -1018,3 +1033,9 @@ stats (IxSet a ixs) = (no_elements,no_indexes,no_keys,no_values)
       no_indexes  = lengthIxList ixs
       no_keys     = sum (ixListToList (\ (Ix m) -> Map.size m) ixs)
       no_values   = sum (ixListToList (\ (Ix m) -> sum [Set.size s | s <- Map.elems m]) ixs)
+
+forceIndexesSeq :: Indexable ixs a => IxSet ixs a -> IxSet ixs a
+forceIndexesSeq (IxSet a ixs)= IxSet a (mapIxList' id ixs)
+
+forceIndexesPar :: Indexable ixs a => IxSet ixs a -> IxSet ixs a
+forceIndexesPar (IxSet a ixs)= IxSet a (runEval $ mapIxListPar' ixs)
