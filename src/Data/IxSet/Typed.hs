@@ -393,7 +393,7 @@ instance (Indexable ixs a, Show a) => Show (IxSet ixs a) where
 instance (Indexable ixs a, Read a) => Read (IxSet ixs a) where
   readsPrec n = map (first fromSet) . readsPrec n
 
-instance (Indexable ixs a, SafeCopy a) => SafeCopy (IxSet ixs a) where
+instance (Indexable ixs a, Typeable ixs, SafeCopy a, Typeable a) => SafeCopy (IxSet ixs a) where
   putCopy = contain . safePut . toList
   getCopy = contain $ fmap fromList safeGet
 
@@ -407,7 +407,7 @@ instance (All NFData ixs, NFData a) => NFData (IxSet ixs a) where
 instance Indexable ixs a => Semigroup (IxSet ixs a) where
   (<>) = mappend
 
-instance Indexable ixs a => Monoid (IxSet ixs a) where
+instance (Semigroup (IxSet ixs a), Indexable ixs a) => Monoid (IxSet ixs a) where
   mempty  = empty
   mappend = union
 
