@@ -1,3 +1,10 @@
+0.5 (2020-03-18)
+================
+
+- GHC 8.8 (and possibly 8.10) compatibility.
+
+- safecopy-0.10 compatibility.
+
 0.4.0.1 (2018-10-01)
 ====================
 
