@@ -407,7 +407,7 @@ instance (All NFData ixs, NFData a) => NFData (IxSet ixs a) where
 instance Indexable ixs a => Semigroup (IxSet ixs a) where
   (<>) = mappend
 
-instance (Semigroup (IxSet ixs a), Indexable ixs a) => Monoid (IxSet ixs a) where
+instance Indexable ixs a => Monoid (IxSet ixs a) where
   mempty  = empty
   mappend = union
 
