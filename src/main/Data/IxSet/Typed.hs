@@ -319,6 +319,7 @@ lengthIxList = go 0
     go :: forall ixs'. Int -> IxList ixs' a -> Int
     go !acc Nil        = acc
     go !acc (_ ::: xs) = go (acc + 1) xs
+{-# INLINE lengthIxList #-}
 
 -- | Turn an index list into a normal list, given a function that
 -- turns an arbitrary index into an element of a fixed type @r@.
@@ -336,6 +337,7 @@ mapIxList :: (All Ord ixs, All (Indexed a) ixs)
           -> IxList ixs a -> IxList ixs a
 mapIxList _ Nil        = Nil
 mapIxList f (x ::: xs) = f x ::: mapIxList f xs
+{-# INLINE mapIxList #-}
 
 -- | Map over an index list (spine-strict).
 mapIxListPar' :: (All Ord ixs, All (Indexed a) ixs)
@@ -347,6 +349,7 @@ mapIxListPar'  (x ::: xs) = do
   x' <- rparWith rseq x
   xs' <- mapIxListPar' xs
   return (x' ::: xs')
+{-# INLINE mapIxListPar' #-}
 
 -- | Map over an index list (spine-strict).
 mapIxList' :: (All Ord ixs, All (Indexed a) ixs)
@@ -355,6 +358,7 @@ mapIxList' :: (All Ord ixs, All (Indexed a) ixs)
            -> IxList ixs a -> IxList ixs a
 mapIxList' _ Nil        = Nil
 mapIxList' f (x ::: xs) = f x !::: mapIxList' f xs
+{-# INLINE mapIxList' #-}
 
 
 -- | Zip two index lists of compatible type (spine-strict).
@@ -364,6 +368,7 @@ zipWithIxList' :: (All Ord ixs, All (Indexed a) ixs)
                -> IxList ixs a -> IxList ixs a -> IxList ixs a
 zipWithIxList' _ Nil        Nil        = Nil
 zipWithIxList' f (x ::: xs) (y ::: ys) = f x y !::: zipWithIxList' f xs ys
+{-# INLINE zipWithIxList' #-}
 
 --------------------------------------------------------------------------
 -- Various instances for 'IxSet'
@@ -489,11 +494,8 @@ insertList xs (IxSet a indexes) = IxSet (List.foldl' (\ b x -> Set.insert x b) a
     update :: forall ix. (Indexed a ix, Ord ix) => Ix ix a -> Ix ix a
     update (Ix index) = Ix index'
       where
-        dss :: [(ix, a)]
-        dss = [(k, x) | x <- xs, k <- ixFun x]
-
         index' :: Map ix (Set a)
-        index' = Ix.insertList dss index
+        index' = List.foldl' (\m v -> List.foldl' (\m' k-> Ix.insert k v m') m (ixFun v)) index xs
 
 -- | Internal helper function that takes a partial index from one index
 -- set and rebuilds the rest of the structure of the index set.
@@ -528,11 +530,9 @@ fromMapOfSet v a =
     updatet :: forall ix'. (Indexed a ix', Ord ix') => Ix ix' a -> Ix ix' a
     updatet (Ix _) = Ix ix
       where
-        dss :: [(ix', a)]
-        dss = [(k, x) | x <- Set.toList a, k <- ixFun x]
-
         ix :: Map ix' (Set a)
-        ix = Ix.fromList dss
+        ix = List.foldl' (\m v -> List.foldl' (\m' k-> Ix.insert k v m') m (ixFun v)) Map.empty (Set.toList a)
+{-# INLINE fromMapOfSet #-}
 
 
 fromMapOfSets :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
@@ -565,16 +565,19 @@ fromMapOfSets partialindex =
 
         ix :: Map ix' (Set a)
         ix = Ix.fromList dss
+{-# INLINE fromMapOfSets #-}
 
 -- | Inserts an item into the 'IxSet'. If your data happens to have a primary
 -- key this function is most likely /not/ what you want. In this case, use
 -- 'updateIx' instead.
 insert :: Indexable ixs a => a -> IxSet ixs a -> IxSet ixs a
 insert = change Set.insert Ix.insert
+{-# INLINABLE insert #-}
 
 -- | Removes an item from the 'IxSet'.
 delete :: Indexable ixs a => a -> IxSet ixs a -> IxSet ixs a
 delete = change Set.delete Ix.delete
+{-# INLINABLE delete #-}
 
 -- | Internal implementation for update* family
 updateIx' :: (Indexable ixs a, IsIndexOf ix ixs, MonadThrow m)
@@ -584,6 +587,7 @@ updateIx' get i new ixset = do
   pure $ insert new $
     maybe ixset (flip delete ixset) $
     existing
+{-# INLINE updateIx' #-}
 
 -- | Internal implementation for delete* family
 deleteIx' :: (Indexable ixs a, IsIndexOf ix ixs, MonadThrow m)
@@ -592,6 +596,7 @@ deleteIx' get i ixset = do
   existing <- get $ ixset @= i
   pure $ maybe ixset (flip delete ixset) $
     existing
+{-# INLINE deleteIx' #-}
 
 -- | Will replace the item with the given index of type 'ix'.
 -- Only works if there is at most one item with that index in the 'IxSet'.
@@ -599,6 +604,7 @@ deleteIx' get i ixset = do
 updateIx :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> a -> IxSet ixs a -> IxSet ixs a
 updateIx i new ixset = fromRight ixset $ updateIx' (Right . getOne) i new ixset
+{-# INLINABLE updateIx #-}
 
 
 -- | Will replace the item with the given index of type 'ix'.
@@ -612,6 +618,7 @@ alterIx i f ixset =
   in ((maybe id insert new) $
     maybe ixset (flip delete ixset) $
     existing,(existing,new))
+{-# INLINABLE alterIx #-}
 
 -- | Will replace the item with the given index of type 'ix'.
 -- Only works if there is at most one item with that index in the 'IxSet'.
@@ -629,6 +636,7 @@ updateUnique = updateIx' getUnique
 deleteIx :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> IxSet ixs a -> IxSet ixs a
 deleteIx i ixset = fromRight ixset $ deleteIx' (Right . getOne) i ixset
+{-# INLINABLE deleteIx #-}
 
 -- | Will delete the item with the given index of type 'ix'.
 -- Only works if there is at  most one item with that index in the 'IxSet'.
@@ -670,11 +678,13 @@ fromSet set = IxSet set v
     v = mapIxList mkIx mkEmptyIxList
 
     mkIx :: forall ix. (Indexed a ix, Ord ix) => Ix ix a -> Ix ix a
-    mkIx (Ix _) = Ix (Ix.fromList [(k, x) | x <- Set.toList set, k <- ixFun x])
+    mkIx (Ix _) = Ix (List.foldl' (\m v -> List.foldl' (\m' k-> Ix.insert k v m') m (ixFun v)) Map.empty (Set.toList set))
+{-# INLINABLE fromSet #-}
 
 -- | Converts a list to an 'IxSet'.
 fromList :: (Indexable ixs a) => [a] -> IxSet ixs a
 fromList list = insertList list empty
+{-# INLINABLE fromList #-}
 
 -- | Returns the number of unique items in the 'IxSet'.
 size :: IxSet ixs a -> Int
@@ -939,6 +949,7 @@ getEQ v (IxSet _ ixs) =  f (access ixs)
   where
     f :: Ix ix a -> IxSet ixs a
     f (Ix index) = maybe empty (fromMapOfSet v) $ Map.lookup v index
+{-# INLINABLE  getEQ #-}
 
 lookup :: forall ixs ix a. IsIndexOf ix ixs
         => ix -> IxSet ixs a -> Maybe a
@@ -948,6 +959,7 @@ lookup v (IxSet _ ixs) =  f (access ixs)
     f (Ix index) = case Set.toList <$> (Map.lookup v index) of
                         Just [x] -> Just x
                         _ -> Nothing
+{-# INLINABLE  lookup#-}
 
 -- | A function for building up selectors on 'IxSet's.  Used in the
 -- various get* functions.  The set must be indexed over key type,
