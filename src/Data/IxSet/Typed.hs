@@ -5,12 +5,8 @@
              DataKinds, TypeOperators, StandaloneDeriving,
              TypeFamilies, ScopedTypeVariables, ConstraintKinds,
              FunctionalDependencies, FlexibleContexts, BangPatterns #-}
-#if __GLASGOW_HASKELL__ < 710
-{-# LANGUAGE OverlappingInstances #-}
-#endif
-#if __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE UndecidableSuperClasses #-}
-#endif
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 {- |
 An efficient implementation of queryable sets.
 
@@ -191,11 +187,11 @@ module Data.IxSet.Typed
 )
 where
 
+import Data.Kind
 import Prelude hiding (null)
 
 import           Control.Arrow  (first, second)
 import           Control.DeepSeq
-import           Data.Foldable  (Foldable)
 import qualified Data.Foldable  as Fold
 import           Data.Generics  (Data, gmapQ)
 -- import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
@@ -205,14 +201,12 @@ import qualified Data.List      as List
 import           Data.Map       (Map)
 import qualified Data.Map       as Map
 import           Data.Maybe     (fromMaybe)
-import           Data.Monoid    (Monoid(mempty, mappend))
 import           Data.SafeCopy  (SafeCopy(..), contain, safeGet, safePut)
 import           Data.Semigroup (Semigroup(..))
 import           Data.Set       (Set)
 import qualified Data.Set       as Set
 import           Data.Typeable  (Typeable, cast {- , typeOf -})
-import Language.Haskell.TH      as TH
-import GHC.Exts (Constraint)
+import Language.Haskell.TH      as TH hiding (Type)
 
 --------------------------------------------------------------------------
 -- The main 'IxSet' datatype.
@@ -230,10 +224,10 @@ import GHC.Exts (Constraint)
 -- times and subsequently selecting the result will not unnecessarily
 -- rebuild all indices.
 --
-data IxSet (ixs :: [*]) (a :: *) where
+data IxSet (ixs :: [Type]) (a :: Type) where
   IxSet :: !(Set a) -> !(IxList ixs a) -> IxSet ixs a
 
-data IxList (ixs :: [*]) (a :: *) where
+data IxList (ixs :: [Type]) (a :: Type) where
   Nil   :: IxList '[] a
   (:::) :: Ix ix a -> IxList ixs a -> IxList (ix ': ixs) a
 
@@ -274,7 +268,7 @@ infixr 5 !:::
 --
 -- > (Ord Int, Ord Char, Ord Bool)
 --
-type family All (c :: * -> Constraint) (xs :: [*]) :: Constraint
+type family All (c :: Type -> Constraint) (xs :: [Type]) :: Constraint
 type instance All c '[]       = ()
 type instance All c (x ': xs) = (c x, All c xs)
 
@@ -296,7 +290,7 @@ class (All Ord ixs, Ord a) => Indexable ixs a where
 
 -- | Constraint for membership in the type-level list. Says that 'ix'
 -- is contained in the index list 'ixs'.
-class Ord ix => IsIndexOf (ix :: *) (ixs :: [*]) where
+class Ord ix => IsIndexOf (ix :: Type) (ixs :: [Type]) where
 
   -- | Provide access to the selected index in the list.
   access :: IxList ixs a -> Ix ix a
@@ -314,17 +308,13 @@ class Ord ix => IsIndexOf (ix :: *) (ixs :: [*]) where
         -> IxList ixs a -> IxList ixs a
 
 instance
-#if __GLASGOW_HASKELL__ >= 710
   {-# OVERLAPPING #-}
-#endif
   Ord ix => IsIndexOf ix (ix ': ixs) where
   access (x ::: _xs)     = x
   mapAt fh ft (x ::: xs) = fh x ::: mapIxList ft xs
 
 instance
-#if __GLASGOW_HASKELL__ >= 710
   {-# OVERLAPPABLE #-}
-#endif
   IsIndexOf ix ixs => IsIndexOf ix (ix' ': ixs) where
   access (_x ::: xs)     = access xs
   mapAt fh ft (x ::: xs) = ft x ::: mapAt fh ft xs
@@ -405,11 +395,11 @@ instance (All NFData ixs, NFData a) => NFData (IxSet ixs a) where
   rnf (IxSet a ixs) = rnf a `seq` rnf ixs
 
 instance Indexable ixs a => Semigroup (IxSet ixs a) where
-  (<>) = mappend
+  (<>) = union
 
 instance Indexable ixs a => Monoid (IxSet ixs a) where
   mempty  = empty
-  mappend = union
+  mappend = (<>)
 
 instance Foldable (IxSet ixs) where
   fold      = Fold.fold      . toSet

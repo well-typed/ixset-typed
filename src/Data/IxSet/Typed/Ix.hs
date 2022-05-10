@@ -24,6 +24,7 @@ module Data.IxSet.Typed.Ix
 import           Control.DeepSeq
 -- import           Data.Generics hiding (GT)
 -- import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
+import           Data.Kind
 import qualified Data.List  as List
 import           Data.Map   (Map)
 import qualified Data.Map   as Map
@@ -35,7 +36,7 @@ import qualified Data.Set   as Set
 
 -- | 'Ix' is a 'Map' from some key (of type 'ix') to a 'Set' of
 -- values (of type 'a') for that key.
-data Ix (ix :: *) (a :: *) where
+data Ix (ix :: Type) (a :: Type) where
   Ix :: !(Map ix (Set a)) -> (a -> [ix]) -> Ix ix a
 
 instance (NFData ix, NFData a) => NFData (Ix ix a) where
