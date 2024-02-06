@@ -607,7 +607,7 @@ inferIxSet ixset typeName calName entryPoints
            _ -> error "IxSet.inferIxSet calInfo unexpected match"
 
 #if MIN_VERSION_template_haskell(2,17,0)
-tyVarBndrToName :: TyVarBndr () -> Name
+tyVarBndrToName :: TyVarBndr flag -> Name
 tyVarBndrToName (PlainTV nm _) = nm
 tyVarBndrToName (KindedTV nm _ _) = nm
 #else
