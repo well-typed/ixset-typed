@@ -16,6 +16,7 @@ module Data.IxSet.Typed.Ix
     , fromList
     , insertList
     , deleteList
+    , difference
     , union
     , intersection
     )
@@ -27,10 +28,12 @@ import           Control.DeepSeq
 import           Data.Kind
 import qualified Data.List  as List
 import           Data.Map   (Map)
-import qualified Data.Map   as Map
+import qualified Data.Map as Map
 import qualified Data.Map.Strict as Map.Strict
+import qualified Data.Map.Merge.Strict as Map.Strict
 import           Data.Set   (Set)
 import qualified Data.Set   as Set
+import Control.Monad (guard)
 
 -- the core datatypes
 
@@ -119,3 +122,13 @@ intersection :: (Ord a, Ord k)
 intersection index1 index2 = Map.filter (not . Set.null) $
                              Map.intersectionWith Set.intersection index1 index2
 
+-- | Deletes a multimap of values from the index.
+difference :: (Ord a, Ord k)
+           => Map k (Set a) -> Map k (Set a) -> Map k (Set a)
+difference = Map.Strict.merge
+  Map.Strict.preserveMissing
+  Map.Strict.dropMissing
+  (Map.Strict.zipWithMaybeMatched $ \_ els dels ->
+    let deleted = els `Set.difference` dels
+    in deleted <$ guard (not (Set.null els))
+    )
