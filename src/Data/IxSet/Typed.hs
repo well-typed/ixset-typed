@@ -129,6 +129,7 @@ module Data.IxSet.Typed
      insert,
      insertList,
      delete,
+     deleteSet,
      updateIx,
      deleteIx,
 
@@ -152,8 +153,10 @@ module Data.IxSet.Typed
      -- * Set operations
      (&&&),
      (|||),
+     (\\\),
      union,
      intersection,
+     difference,
 
      -- * Indexing
      (@=),
@@ -737,6 +740,18 @@ insert = change Set.insert Ix.insert
 delete :: Indexable ixs a => a -> IxSet ixs a -> IxSet ixs a
 delete = change Set.delete Ix.delete
 
+-- | Remove every item in the second 'IxSet' from the first 'IxSet'.
+difference :: forall ixs a. Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
+difference (IxSet elements ixs) (IxSet deletes deleteIxs) =
+  IxSet (elements `Set.difference` deletes) $
+    zipWithIxList' diffIx ixs deleteIxs
+  where
+  diffIx (Ix ix ixer) (Ix delIx _) = Ix (Ix.difference ix delIx) ixer
+
+-- | Remove every element of a 'Set' from an 'IxSet'.
+deleteSet :: Indexable ixs a => Set a -> IxSet ixs a -> IxSet ixs a
+deleteSet deletes set = set `difference` fromSet deletes
+
 -- | Will replace the item with the given index of type 'ix'.
 -- Only works if there is at most one item with that index in the 'IxSet'.
 -- Will not change 'IxSet' if you have more than one item with given index.
@@ -821,6 +836,9 @@ null (IxSet a _) = Set.null a
 -- | An infix 'union' operation.
 (|||) :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 (|||) = union
+
+(\\\) :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
+(\\\) = difference
 
 infixr 5 &&&
 infixr 5 |||
