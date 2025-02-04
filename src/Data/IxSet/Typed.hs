@@ -183,6 +183,7 @@ module Data.IxSet.Typed
      flattenWithCalcs,
 
      -- * Debugging and optimization
+     project,
      stats
 )
 where
@@ -366,6 +367,12 @@ zipWithIxList' _ _          _          = error "Data.IxSet.Typed.zipWithIxList: 
   -- the line above is actually impossible by the types; it's just there
   -- to please avoid the warning resulting from the exhaustiveness check
 #endif
+
+-- | Project out the indices from a value of an 'Indexable' type.
+project :: forall proxy ixs ix a . (Indexable ixs a, IsIndexOf ix ixs) => proxy ixs -> a -> [ix]
+project _ = case access (indices :: IxList ixs a) :: Ix ix a of
+              Ix _ f -> f
+
 
 --------------------------------------------------------------------------
 -- Various instances for 'IxSet'
