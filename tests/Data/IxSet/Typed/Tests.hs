@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, FlexibleContexts, TemplateHaskell, UndecidableInstances, TemplateHaskell, DataKinds, FlexibleInstances, MultiParamTypeClasses, TypeOperators, KindSignatures #-}
+{-# LANGUAGE DeriveAnyClass, DeriveDataTypeable, DeriveGeneric, DerivingStrategies, FlexibleContexts, TemplateHaskell, UndecidableInstances, TemplateHaskell, DataKinds, FlexibleInstances, MultiParamTypeClasses, TypeOperators, KindSignatures #-}
 {-# OPTIONS_GHC -fdefer-type-errors -fno-warn-orphans #-}
 
 -- TODO (only if SYBWC is added again):
@@ -7,19 +7,22 @@
 
 module Data.IxSet.Typed.Tests where
 
+import           Prelude hiding (filter)
 import           Control.Monad
 import           Control.Exception
 import           Data.Data         (Data, Typeable)
 import           Data.IxSet.Typed  as IxSet
 import           Data.Maybe
 import qualified Data.Set          as Set
+import           GHC.Generics      (Generic)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
 
 data Foo
     = Foo String Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving stock (Eq, Generic, Ord, Show, Data, Typeable)
+      deriving anyclass (CoArbitrary, Function)
 
 data FooX
     = Foo1 String Int
@@ -165,6 +168,11 @@ prop_difference ixset1 ixset2 =
     toSet (ixset1 `difference` ixset2) ==
           toSet ixset1 `Set.difference` toSet ixset2
 
+prop_filter :: Fun Foo Bool -> Foos -> Bool
+prop_filter p ixset =
+    toSet (filter (applyFun p) ixset) ==
+          Set.filter (applyFun p) (toSet ixset)
+
 prop_any :: Foos -> [Int] -> Bool
 prop_any ixset idxs =
     (ixset @+ idxs) == foldr union empty (map ((@=) ixset) idxs)
@@ -178,6 +186,7 @@ setOps = testGroup "set operations" $
   [ testProperty "distributivity toSet / union"        $ prop_union
   , testProperty "distributivity toSet / intersection" $ prop_intersection
   , testProperty "distributivity toSet / difference"   $ prop_difference
+  , testProperty "distributivity toSet / filter"       $ prop_filter
   , testProperty "any (@+)"                            $ prop_any
   , testProperty "all (@*)"                            $ prop_all
   ]

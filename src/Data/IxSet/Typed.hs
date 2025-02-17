@@ -130,6 +130,7 @@ module Data.IxSet.Typed
      insertList,
      delete,
      deleteSet,
+     filter,
      updateIx,
      deleteIx,
 
@@ -191,7 +192,7 @@ module Data.IxSet.Typed
 where
 
 import Data.Kind
-import Prelude hiding (null)
+import Prelude hiding (filter, null)
 
 import           Control.Arrow  (first, second)
 import           Control.DeepSeq
@@ -751,6 +752,11 @@ difference (IxSet elements ixs) (IxSet deletes deleteIxs) =
 -- | Remove every element of a 'Set' from an 'IxSet'.
 deleteSet :: Indexable ixs a => Set a -> IxSet ixs a -> IxSet ixs a
 deleteSet deletes set = set `difference` fromSet deletes
+
+-- | Remove elements from an `IxSet` not matching a predicate.
+filter :: Indexable ixs a => (a -> Bool) -> IxSet ixs a -> IxSet ixs a
+filter p ixset@(IxSet elements _ixs) =
+  ixset `difference` fromSet (Set.filter (not . p) elements)
 
 -- | Will replace the item with the given index of type 'ix'.
 -- Only works if there is at most one item with that index in the 'IxSet'.
