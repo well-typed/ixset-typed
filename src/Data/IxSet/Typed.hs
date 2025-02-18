@@ -129,6 +129,8 @@ module Data.IxSet.Typed
      insert,
      insertList,
      delete,
+     deleteSet,
+     filter,
      updateIx,
      deleteIx,
 
@@ -152,8 +154,10 @@ module Data.IxSet.Typed
      -- * Set operations
      (&&&),
      (|||),
+     (\\\),
      union,
      intersection,
+     difference,
 
      -- * Indexing
      (@=),
@@ -188,7 +192,7 @@ module Data.IxSet.Typed
 where
 
 import Data.Kind
-import Prelude hiding (null)
+import Prelude hiding (filter, null)
 
 import           Control.Arrow  (first, second)
 import           Control.DeepSeq
@@ -737,6 +741,23 @@ insert = change Set.insert Ix.insert
 delete :: Indexable ixs a => a -> IxSet ixs a -> IxSet ixs a
 delete = change Set.delete Ix.delete
 
+-- | Remove every item in the second 'IxSet' from the first 'IxSet'.
+difference :: forall ixs a. Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
+difference (IxSet elements ixs) (IxSet deletes deleteIxs) =
+  IxSet (elements `Set.difference` deletes) $
+    zipWithIxList' diffIx ixs deleteIxs
+  where
+  diffIx (Ix ix ixer) (Ix delIx _) = Ix (Ix.difference ix delIx) ixer
+
+-- | Remove every element of a 'Set' from an 'IxSet'.
+deleteSet :: Indexable ixs a => Set a -> IxSet ixs a -> IxSet ixs a
+deleteSet deletes set = set `difference` fromSet deletes
+
+-- | Remove elements from an `IxSet` not matching a predicate.
+filter :: Indexable ixs a => (a -> Bool) -> IxSet ixs a -> IxSet ixs a
+filter p ixset@(IxSet elements _ixs) =
+  ixset `difference` fromSet (Set.filter (not . p) elements)
+
 -- | Will replace the item with the given index of type 'ix'.
 -- Only works if there is at most one item with that index in the 'IxSet'.
 -- Will not change 'IxSet' if you have more than one item with given index.
@@ -764,12 +785,24 @@ toSet :: IxSet ixs a -> Set a
 toSet (IxSet a _) = a
 
 -- | Converts a 'Set' to an 'IxSet'.
-fromSet :: (Indexable ixs a) => Set a -> IxSet ixs a
-fromSet = fromList . Set.toList
+fromSet :: forall ixs a. (Indexable ixs a) => Set a -> IxSet ixs a
+fromSet s = IxSet s makeIndices
+  where
+  makeIndices =
+    -- deliberately lazy, so that indices are not built until needed
+    mapIxList update indices
+  update :: forall ix. Ord ix => Ix ix a -> Ix ix a
+  update (Ix index f) = Ix index' f
+    where
+      dss :: [(ix, a)]
+      dss = [(k, x) | x <- Set.toList s, k <- f x]
+
+      index' :: Map ix (Set a)
+      index' = Ix.insertList dss index
 
 -- | Converts a list to an 'IxSet'.
 fromList :: (Indexable ixs a) => [a] -> IxSet ixs a
-fromList list = insertList list empty
+fromList = fromSet . Set.fromList
 
 -- | Returns the number of unique items in the 'IxSet'.
 size :: IxSet ixs a -> Int
@@ -821,6 +854,9 @@ null (IxSet a _) = Set.null a
 -- | An infix 'union' operation.
 (|||) :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 (|||) = union
+
+(\\\) :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
+(\\\) = difference
 
 infixr 5 &&&
 infixr 5 |||
