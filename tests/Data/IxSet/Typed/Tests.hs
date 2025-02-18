@@ -160,6 +160,11 @@ prop_intersection ixset1 ixset2 =
     toSet (ixset1 `intersection` ixset2) ==
           toSet ixset1 `Set.intersection` toSet ixset2
 
+prop_difference :: Foos -> Foos -> Bool
+prop_difference ixset1 ixset2 =
+    toSet (ixset1 `difference` ixset2) ==
+          toSet ixset1 `Set.difference` toSet ixset2
+
 prop_any :: Foos -> [Int] -> Bool
 prop_any ixset idxs =
     (ixset @+ idxs) == foldr union empty (map ((@=) ixset) idxs)
@@ -172,6 +177,7 @@ setOps :: TestTree
 setOps = testGroup "set operations" $
   [ testProperty "distributivity toSet / union"        $ prop_union
   , testProperty "distributivity toSet / intersection" $ prop_intersection
+  , testProperty "distributivity toSet / difference"   $ prop_difference
   , testProperty "any (@+)"                            $ prop_any
   , testProperty "all (@*)"                            $ prop_all
   ]
