@@ -785,12 +785,24 @@ toSet :: IxSet ixs a -> Set a
 toSet (IxSet a _) = a
 
 -- | Converts a 'Set' to an 'IxSet'.
-fromSet :: (Indexable ixs a) => Set a -> IxSet ixs a
-fromSet = fromList . Set.toList
+fromSet :: forall ixs a. (Indexable ixs a) => Set a -> IxSet ixs a
+fromSet s = IxSet s makeIndices
+  where
+  makeIndices =
+    -- deliberately lazy, so that indices are not built until needed
+    mapIxList update indices
+  update :: forall ix. Ord ix => Ix ix a -> Ix ix a
+  update (Ix index f) = Ix index' f
+    where
+      dss :: [(ix, a)]
+      dss = [(k, x) | x <- Set.toList s, k <- f x]
+
+      index' :: Map ix (Set a)
+      index' = Ix.insertList dss index
 
 -- | Converts a list to an 'IxSet'.
 fromList :: (Indexable ixs a) => [a] -> IxSet ixs a
-fromList list = insertList list empty
+fromList = fromSet . Set.fromList
 
 -- | Returns the number of unique items in the 'IxSet'.
 size :: IxSet ixs a -> Int
