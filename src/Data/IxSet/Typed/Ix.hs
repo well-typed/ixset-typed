@@ -119,8 +119,13 @@ union index1 index2 = Map.unionWith Set.union index1 index2
 -- | Takes the intersection of two sets.
 intersection :: (Ord a, Ord k)
              => Map k (Set a) -> Map k (Set a) -> Map k (Set a)
-intersection index1 index2 = Map.filter (not . Set.null) $
-                             Map.intersectionWith Set.intersection index1 index2
+intersection = Map.Strict.merge
+  Map.Strict.dropMissing
+  Map.Strict.dropMissing
+  (Map.Strict.zipWithMaybeMatched $ \_ els1 els2 ->
+    let r = Set.intersection els1 els2
+    in r <$ guard (not (Set.null r))
+  )
 
 -- | Deletes a multimap of values from the index.
 difference :: (Ord a, Ord k)
