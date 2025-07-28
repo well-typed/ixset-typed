@@ -1,4 +1,8 @@
 packages: .
+tests: True
 
 allow-newer:
   safecopy:template-haskell
+
+package ixset-typed
+  ghc-options: -Werror=unused-packages
