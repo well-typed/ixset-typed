@@ -14,8 +14,12 @@
 #
 name: Haskell-CI
 on:
-  - push
-  - pull_request
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
 jobs:
   linux:
     name: Haskell-CI - Linux - ${{ matrix.compiler }}
@@ -28,9 +32,29 @@ jobs:
     strategy:
       matrix:
         include:
-          - compiler: ghc-9.2.2
+          - compiler: ghc-9.10.2
             compilerKind: ghc
-            compilerVersion: 9.2.2
+            compilerVersion: 9.10.2
+            setup-method: ghcup
+            allow-failure: false
+          - compiler: ghc-9.8.4
+            compilerKind: ghc
+            compilerVersion: 9.8.4
+            setup-method: ghcup
+            allow-failure: false
+          - compiler: ghc-9.6.7
+            compilerKind: ghc
+            compilerVersion: 9.6.7
+            setup-method: ghcup
+            allow-failure: false
+          - compiler: ghc-9.4.8
+            compilerKind: ghc
+            compilerVersion: 9.4.8
+            setup-method: ghcup
+            allow-failure: false
+          - compiler: ghc-9.2.8
+            compilerKind: ghc
+            compilerVersion: 9.2.8
             setup-method: ghcup
             allow-failure: false
           - compiler: ghc-9.0.2
@@ -157,6 +181,15 @@ jobs:
           rm -f cabal-plan.xz
           chmod a+x $HOME/.cabal/bin/cabal-plan
           cabal-plan --version
+      - name: install cabal-docspec
+        run: |
+          mkdir -p $HOME/.cabal/bin
+          curl -sL https://github.com/phadej/cabal-extras/releases/download/cabal-docspec-0.0.0.20250606/cabal-docspec-0.0.0.20250606-x86_64-linux.xz > cabal-docspec.xz
+          echo 'cc20bb5c19501b42bde77556bc419c7c0a5c8d1eb65663024d8a4e4c868bef25  cabal-docspec.xz' | sha256sum -c -
+          xz -d < cabal-docspec.xz > $HOME/.cabal/bin/cabal-docspec
+          rm -f cabal-docspec.xz
+          chmod a+x $HOME/.cabal/bin/cabal-docspec
+          cabal-docspec --version
       - name: checkout
         uses: actions/checkout@v4
         with:
@@ -184,6 +217,8 @@ jobs:
           echo "packages: ${PKGDIR_ixset_typed}" >> cabal.project
           if [ $((HCNUMVER >= 80200)) -ne 0 ] ; then echo "package ixset-typed" >> cabal.project ; fi
           if [ $((HCNUMVER >= 80200)) -ne 0 ] ; then echo "    ghc-options: -Werror=missing-methods -Werror=missing-fields" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90400)) -ne 0 ] ; then echo "package ixset-typed" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90400)) -ne 0 ] ; then echo "    ghc-options: -Werror=unused-packages" >> cabal.project ; fi
           if [ $((HCNUMVER >= 90000)) -ne 0 ] ; then echo "package ixset-typed" >> cabal.project ; fi
           if [ $((HCNUMVER >= 90000)) -ne 0 ] ; then echo "    ghc-options: -Werror=incomplete-patterns -Werror=incomplete-uni-patterns" >> cabal.project ; fi
           cat >> cabal.project <<EOF
@@ -214,6 +249,10 @@ jobs:
       - name: tests
         run: |
           $CABAL v2-test $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --test-show-details=direct
+      - name: docspec
+        run: |
+          $CABAL v2-build $ARG_COMPILER $ARG_TESTS $ARG_BENCH all
+          cabal-docspec $ARG_COMPILER
       - name: cabal check
         run: |
           cd ${PKGDIR_ixset_typed} || false
