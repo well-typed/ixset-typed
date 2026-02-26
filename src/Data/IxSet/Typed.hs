@@ -184,6 +184,7 @@ module Data.IxSet.Typed
 
      -- * Debugging and optimization
      project,
+     getIndex,
      stats
 )
 where
@@ -372,6 +373,11 @@ zipWithIxList' _ _          _          = error "Data.IxSet.Typed.zipWithIxList: 
 project :: forall proxy ixs ix a . (Indexable ixs a, IsIndexOf ix ixs) => proxy ixs -> a -> [ix]
 project _ = case access (indices :: IxList ixs a) :: Ix ix a of
               Ix _ f -> f
+
+-- | Extract a single index map from an 'IxSet'.
+getIndex :: forall ixs ix a . (Indexable ixs a, IsIndexOf ix ixs) => IxSet ixs a -> Map ix (Set a)
+getIndex (IxSet _ ixs) = case access ixs of
+    Ix m _ -> m
 
 
 --------------------------------------------------------------------------
