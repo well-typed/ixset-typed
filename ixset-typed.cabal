@@ -21,7 +21,7 @@ description:
 license:             BSD3
 license-file:        COPYING
 author:              Andres Löh, Happstack team, HAppS LLC
-maintainer:          Andres Löh <andres@well-typed.com>
+maintainer:          Andres Löh <andres@well-typed.com>, Adam Gundry <adam@well-typed.com>
 category:            Data Structures
 build-type:          Simple
 cabal-version:       >= 1.10
