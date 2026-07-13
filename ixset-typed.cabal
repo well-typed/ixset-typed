@@ -1,5 +1,5 @@
 name:                ixset-typed
-version:             0.5.1.0
+version:             0.5.1.1
 synopsis:            Efficient relational queries on Haskell sets.
 description:
     This Haskell package provides a data structure of sets that are indexed
@@ -21,7 +21,7 @@ description:
 license:             BSD3
 license-file:        COPYING
 author:              Andres Löh, Happstack team, HAppS LLC
-maintainer:          Andres Löh <andres@well-typed.com>
+maintainer:          Andres Löh <andres@well-typed.com>, Adam Gundry <adam@well-typed.com>
 category:            Data Structures
 build-type:          Simple
 cabal-version:       >= 1.10
