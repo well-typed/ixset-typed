@@ -171,6 +171,32 @@ prop_filter p ixset =
     toSet (filter (applyFun p) ixset) ==
           Set.filter (applyFun p) (toSet ixset)
 
+-- | Two sets have the same indices if grouping by each of them agrees.
+sameIndices :: Foos -> Foos -> Bool
+sameIndices ixset1 ixset2 =
+    (groupBy ixset1 :: [(Int, [Foo])])    == groupBy ixset2 &&
+    (groupBy ixset1 :: [(String, [Foo])]) == groupBy ixset2
+
+-- | A set has valid indices if building them afresh (using fromList) leaves
+-- them unchanged.
+validIndices :: Foos -> Bool
+validIndices ixset = sameIndices ixset (fromList (toList ixset))
+
+-- | Removing elements should leave the same indices behind as building a
+-- set from the remaining elements in the first place. In particular, a
+-- key all of whose elements have been removed should be gone from the
+-- index, not left behind with an empty set of elements.
+prop_differenceIndices :: Fun Foo Bool -> Foos -> Bool
+prop_differenceIndices p ixset = validIndices d
+  where
+    -- A genuine subset, so that keys really do get emptied. Two
+    -- independently generated sets would hardly ever overlap.
+    subset = fromList [ x | x <- toList ixset, applyFun p x ]
+    d      = ixset `difference` subset
+
+prop_filterIndices :: Fun Foo Bool -> Foos -> Bool
+prop_filterIndices p ixset = validIndices (filter (applyFun p) ixset)
+
 prop_any :: Foos -> [Int] -> Bool
 prop_any ixset idxs =
     (ixset @+ idxs) == foldr union empty (map ((@=) ixset) idxs)
@@ -185,6 +211,10 @@ setOps = testGroup "set operations" $
   , testProperty "distributivity toSet / intersection" $ prop_intersection
   , testProperty "distributivity toSet / difference"   $ prop_difference
   , testProperty "distributivity toSet / filter"       $ prop_filter
+  , testProperty "indices after union"                 $ \ x y -> validIndices (x `union` y)
+  , testProperty "indices after intersection"          $ \ x y -> validIndices (x `intersection` y)
+  , testProperty "indices after difference"            $ prop_differenceIndices
+  , testProperty "indices after filter"                $ prop_filterIndices
   , testProperty "any (@+)"                            $ prop_any
   , testProperty "all (@*)"                            $ prop_all
   ]

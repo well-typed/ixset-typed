@@ -93,7 +93,7 @@ difference index deletes = Map.Strict.merge
   Map.Strict.preserveMissing
   (Map.Strict.zipWithMaybeMatched $ \_ dels els ->
     let deleted = els `Set.difference` dels
-    in deleted <$ guard (not (Set.null els))
+    in deleted <$ guard (not (Set.null deleted))
     )
   deletes
   index
