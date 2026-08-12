@@ -1,5 +1,6 @@
 packages: .
 tests: True
+benchmarks: True
 
 allow-newer:
   safecopy:template-haskell
