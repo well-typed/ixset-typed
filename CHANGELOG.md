@@ -1,7 +1,9 @@
-Unreleased
-==========
+0.6 (Unreleased)
+================
 
-* Add `deleteSet`, `filter`, `difference` and `(\\\)` operations.
+* Add `insertSet`, `insertMany`, `deleteSet`, `deleteMany`, `filter`, `difference` and `(\\\)` operations.
+
+* Change some internal helper functions in `Data.IxSet.Typed.Ix`.
 
 * Limit supported versions to GHC 9.2 and later.
 

@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 {- |
 
@@ -10,10 +11,11 @@ probably be considered private to @Data.IxSet.Typed@.
 module Data.IxSet.Typed.Ix
     ( Ix(..)
     , insert
+    , insertMany
     , delete
-    , fromList
-    , insertList
-    , deleteList
+    , build
+    , insertManyWith
+    , deleteMany
     , difference
     , union
     , intersection
@@ -21,6 +23,7 @@ module Data.IxSet.Typed.Ix
     where
 
 import           Control.DeepSeq (NFData(..))
+import qualified Data.Foldable as Fold
 import           Data.Kind  (Type)
 import qualified Data.List  as List
 import           Data.Map   (Map)
@@ -50,15 +53,24 @@ insert :: (Ord a, Ord k)
        => k -> a -> Map k (Set a) -> Map k (Set a)
 insert k v index = Map.Strict.insertWith Set.union k (Set.singleton v) index
 
--- | Helper function to 'insert' a list of elements into a set.
-insertList :: (Ord a, Ord k)
-           => [(k,a)] -> Map k (Set a) -> Map k (Set a)
-insertList xs index = List.foldl' (\m (k,v)-> insert k v m) index xs
+-- | Insert a 'Foldable' collection of elements into an index, under the
+-- keys given for each of them by the indexing function, but ignoring any
+-- key that does not satisfy the predicate.
+insertManyWith :: (Foldable f, Ord a, Ord ix)
+               => (ix -> Bool) -> f a -> (a -> [ix])
+               -> Map ix (Set a) -> Map ix (Set a)
+insertManyWith p xs f index =
+    Fold.foldl' (\ m v -> List.foldl' (ins v) m (f v)) index xs
+  where
+    ins v m k = if p k then insert k v m else m
 
--- | Helper function to create a new index from a list.
-fromList :: (Ord a, Ord k) => [(k, a)] -> Map k (Set a)
-fromList xs =
-  Map.fromListWith Set.union (List.map (\ (k, v) -> (k, Set.singleton v)) xs)
+-- | Create a new index from a 'Foldable' collection of elements.
+build :: (Foldable f, Ord a, Ord ix) => f a -> (a -> [ix]) -> Ix ix a
+build xs f = Ix (insertManyWith (const True) xs f Map.empty) f
+
+-- | Insert a 'Foldable' collection of elements into an 'Ix'.
+insertMany :: (Foldable f, Ord a, Ord ix) => f a -> Ix ix a -> Ix ix a
+insertMany xs (Ix index f) = Ix (insertManyWith (const True) xs f index) f
 
 -- | Convenience function for deleting from 'Map's of 'Set's. If the
 -- resulting 'Set' is empty, then the entry is removed from the 'Map'.
@@ -69,10 +81,11 @@ delete k v index = Map.update remove k index
     remove set = let set' = Set.delete v set
                  in if Set.null set' then Nothing else Just set'
 
--- | Helper function to 'delete' a list of elements from a set.
-deleteList :: (Ord a, Ord k)
-           => [(k,a)] -> Map k (Set a) -> Map k (Set a)
-deleteList xs index = List.foldl' (\m (k,v) -> delete k v m) index xs
+-- | Helper function to delete a collection of elements from an index.
+deleteMany :: (Ord a, Ord ix, Foldable f) => f a -> Ix ix a -> Ix ix a
+deleteMany deletes (Ix index f) = Ix index' f
+  where
+    index' = Fold.foldl' (\ m v -> List.foldl' (\ m' k -> delete k v m') m (f v)) index deletes
 
 -- | Takes the union of two sets.
 union :: (Ord a, Ord k)
