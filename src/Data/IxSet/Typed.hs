@@ -833,44 +833,38 @@ ix @+ list = List.foldl' union empty $ map (ix @=) list
 ix @* list = List.foldl' intersection ix $ map (ix @=) list
 
 -- | Returns the subset with an index equal to the provided key.  The
--- set must be indexed over key type, doing otherwise results in
--- runtime error.
+-- set must be indexed over key type.
 getEQ :: (Indexable ixs a, IsIndexOf ix ixs)
       => ix -> IxSet ixs a -> IxSet ixs a
 getEQ = getOrd EQ
 
 -- | Returns the subset with an index less than the provided key.  The
--- set must be indexed over key type, doing otherwise results in
--- runtime error.
+-- set must be indexed over key type.
 getLT :: (Indexable ixs a, IsIndexOf ix ixs)
       => ix -> IxSet ixs a -> IxSet ixs a
 getLT = getOrd LT
 
 -- | Returns the subset with an index greater than the provided key.
--- The set must be indexed over key type, doing otherwise results in
--- runtime error.
+-- The set must be indexed over key type.
 getGT :: (Indexable ixs a, IsIndexOf ix ixs)
       => ix -> IxSet ixs a -> IxSet ixs a
 getGT = getOrd GT
 
 -- | Returns the subset with an index less than or equal to the
--- provided key.  The set must be indexed over key type, doing
--- otherwise results in runtime error.
+-- provided key.  The set must be indexed over key type.
 getLTE :: (Indexable ixs a, IsIndexOf ix ixs)
        => ix -> IxSet ixs a -> IxSet ixs a
 getLTE = getOrd2 True True False
 
 -- | Returns the subset with an index greater than or equal to the
--- provided key.  The set must be indexed over key type, doing
--- otherwise results in runtime error.
+-- provided key.  The set must be indexed over key type.
 getGTE :: (Indexable ixs a, IsIndexOf ix ixs)
        => ix -> IxSet ixs a -> IxSet ixs a
 getGTE = getOrd2 False True True
 
 -- | Returns the subset with an index within the interval provided.
 -- The bottom of the interval is closed and the top is open,
--- i. e. [k1;k2).  The set must be indexed over key type, doing
--- otherwise results in runtime error.
+-- i. e. [k1;k2).  The set must be indexed over key type.
 getRange :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> ix -> IxSet ixs a -> IxSet ixs a
 getRange k1 k2 ixset = getGTE k1 (getLT k2 ixset)
@@ -917,8 +911,7 @@ groupDescBy (IxSet _ indexes) = f (access indexes)
     f (Ix index _) = map (second Set.toAscList) (Map.toDescList index)
 
 -- | A function for building up selectors on 'IxSet's.  Used in the
--- various get* functions.  The set must be indexed over key type,
--- doing otherwise results in runtime error.
+-- various get* functions.  The set must be indexed over key type.
 
 getOrd :: (Indexable ixs a, IsIndexOf ix ixs)
        => Ordering -> ix -> IxSet ixs a -> IxSet ixs a
@@ -927,8 +920,7 @@ getOrd EQ = getOrd2 False True False
 getOrd GT = getOrd2 False False True
 
 -- | A function for building up selectors on 'IxSet's.  Used in the
--- various get* functions.  The set must be indexed over key type,
--- doing otherwise results in runtime error.
+-- various get* functions.  The set must be indexed over key type.
 getOrd2 :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
         => Bool -> Bool -> Bool -> ix -> IxSet ixs a -> IxSet ixs a
 getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)
