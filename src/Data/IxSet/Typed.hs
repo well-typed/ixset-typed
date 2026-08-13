@@ -1,12 +1,16 @@
-{-# LANGUAGE UndecidableInstances, FlexibleInstances,
-             MultiParamTypeClasses, TemplateHaskell, RankNTypes,
-             FunctionalDependencies, DeriveDataTypeable,
-             GADTs, CPP, ScopedTypeVariables, KindSignatures,
-             DataKinds, TypeOperators, StandaloneDeriving,
-             TypeFamilies, ScopedTypeVariables, ConstraintKinds,
-             FunctionalDependencies, FlexibleContexts, BangPatterns #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 {- |
 An efficient implementation of queryable sets.
 
@@ -191,7 +195,7 @@ import Data.Kind
 import Prelude hiding (null)
 
 import           Control.Arrow  (first, second)
-import           Control.DeepSeq
+import           Control.DeepSeq (NFData(..))
 import qualified Data.Foldable  as Fold
 import           Data.Generics  (Data, gmapQ)
 import qualified Data.IxSet.Typed.Ix  as Ix
@@ -201,7 +205,6 @@ import           Data.Map       (Map)
 import qualified Data.Map       as Map
 import           Data.Maybe     (fromMaybe)
 import           Data.SafeCopy  (SafeCopy(..), contain, safeGet, safePut)
-import           Data.Semigroup (Semigroup(..))
 import           Data.Set       (Set)
 import qualified Data.Set       as Set
 import           Data.Typeable  (Typeable, cast)

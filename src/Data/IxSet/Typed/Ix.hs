@@ -1,7 +1,5 @@
-{-# LANGUAGE UndecidableInstances, FlexibleInstances,
-             MultiParamTypeClasses, TemplateHaskell, PolymorphicComponents,
-             DeriveDataTypeable,ExistentialQuantification, KindSignatures,
-             StandaloneDeriving, GADTs #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
 
 {- |
 
@@ -21,8 +19,8 @@ module Data.IxSet.Typed.Ix
     )
     where
 
-import           Control.DeepSeq
-import           Data.Kind
+import           Control.DeepSeq (NFData(..))
+import           Data.Kind  (Type)
 import qualified Data.List  as List
 import           Data.Map   (Map)
 import qualified Data.Map   as Map
