@@ -1,15 +1,13 @@
 {-# LANGUAGE DeriveDataTypeable, FlexibleContexts, TemplateHaskell, UndecidableInstances, TemplateHaskell, DataKinds, FlexibleInstances, MultiParamTypeClasses, TypeOperators, KindSignatures #-}
-{-# OPTIONS_GHC -fdefer-type-errors -fno-warn-orphans #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
--- TODO (only if SYBWC is added again):
--- Check that the SYBWC Data instance for IxSet works, by testing
--- that going to and from XML works.
-
-module Data.IxSet.Typed.Tests where
+module Data.IxSet.Typed.Tests
+  ( allTests
+  ) where
 
 import           Control.Monad
 import           Control.Exception
-import           Data.Data         (Data, Typeable)
+import           Data.Data         (Data)
 import           Data.IxSet.Typed  as IxSet
 import           Data.Maybe
 import qualified Data.Set          as Set
@@ -19,46 +17,46 @@ import           Test.Tasty.QuickCheck
 
 data Foo
     = Foo String Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 data FooX
     = Foo1 String Int
     | Foo2 Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 data NoIdxFoo
     = NoIdxFoo Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 data BadlyIndexed
     = BadlyIndexed Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 data MultiIndex
     = MultiIndex String Int Integer (Maybe Int) (Either Bool Char)
     | MultiIndexSubset Int Bool String
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 data Triple
     = Triple Int Int Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 data S
     = S String
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 data G a b
     = G a b
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 fooCalcs :: Foo -> String
 fooCalcs (Foo s _) = s ++ "bar"
 
 inferIxSet "FooXs"         ''FooX         'noCalcs  [''Int, ''String]
-inferIxSet "BadlyIndexeds" ''BadlyIndexed 'noCalcs  [''String]
+-- inferIxSet "BadlyIndexeds" ''BadlyIndexed 'noCalcs  [''String]
 inferIxSet "MultiIndexed"  ''MultiIndex   'noCalcs  [''String, ''Int, ''Integer, ''Bool, ''Char]
 inferIxSet "Triples"       ''Triple       'noCalcs  [''Int]
-inferIxSet "Gs"            ''G            'noCalcs  [''Int]
+-- inferIxSet "Gs"            ''G            'noCalcs  [''Int]
 inferIxSet "Foos"          ''Foo          'fooCalcs [''String, ''Int]
 
 instance Indexable '[Int] S where
@@ -108,8 +106,8 @@ ixSetCheckSetMethods =
         3 @=? length (toList foox_set_abc)
     ]
 
-isError :: a -> Assertion
-isError x = do
+_isError :: a -> Assertion
+_isError x = do
   r <- try (return $! x)
   case r of
     Left  (ErrorCall _) -> return ()

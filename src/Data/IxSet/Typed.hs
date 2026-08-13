@@ -1,30 +1,33 @@
-{-# LANGUAGE UndecidableInstances, FlexibleInstances,
-             MultiParamTypeClasses, TemplateHaskell, RankNTypes,
-             FunctionalDependencies, DeriveDataTypeable,
-             GADTs, CPP, ScopedTypeVariables, KindSignatures,
-             DataKinds, TypeOperators, StandaloneDeriving,
-             TypeFamilies, ScopedTypeVariables, ConstraintKinds,
-             FunctionalDependencies, FlexibleContexts, BangPatterns #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 {- |
 An efficient implementation of queryable sets.
 
 Assume you have a family of types such as:
 
 > data Entry      = Entry Author [Author] Updated Id Content
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord, Data)
 > newtype Updated = Updated UTCTime
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord, Data)
 > newtype Id      = Id Int64
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord, Data)
 > newtype Content = Content String
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord, Data)
 > newtype Author  = Author Email
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord, Data)
 > type Email      = String
 > data Test = Test
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord, Data)
 
 1. Decide what parts of your type you want indexed and make your type
 an instance of 'Indexable'. Use 'ixFun' and 'ixGen' to build indices:
@@ -39,7 +42,7 @@ an instance of 'Indexable'. Use 'ixFun' and 'ixGen' to build indices:
     >               (ixGen (Proxy :: Proxy Updated))
     >               (ixGen (Proxy :: Proxy Test))          -- bogus index
 
-    The use of 'ixGen' requires the 'Data' and 'Typeable' instances above.
+    The use of 'ixGen' requires the 'Data' instances above.
     You can build indices manually using 'ixFun'. You can also use the
     Template Haskell function 'inferIxSet' to generate an 'Indexable'
     instance automatically.
@@ -191,10 +194,9 @@ import Data.Kind
 import Prelude hiding (null)
 
 import           Control.Arrow  (first, second)
-import           Control.DeepSeq
+import           Control.DeepSeq (NFData(..))
 import qualified Data.Foldable  as Fold
 import           Data.Generics  (Data, gmapQ)
--- import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
 import qualified Data.IxSet.Typed.Ix  as Ix
 import           Data.IxSet.Typed.Ix  (Ix(Ix))
 import qualified Data.List      as List
@@ -202,10 +204,9 @@ import           Data.Map       (Map)
 import qualified Data.Map       as Map
 import           Data.Maybe     (fromMaybe)
 import           Data.SafeCopy  (SafeCopy(..), contain, safeGet, safePut)
-import           Data.Semigroup (Semigroup(..))
 import           Data.Set       (Set)
 import qualified Data.Set       as Set
-import           Data.Typeable  (Typeable, cast {- , typeOf -})
+import           Data.Typeable  (Typeable, cast)
 import Language.Haskell.TH      as TH hiding (Type)
 
 --------------------------------------------------------------------------
@@ -238,17 +239,6 @@ infixr 5 :::
 (!:::) !ix !ixs = ix ::: ixs
 
 infixr 5 !:::
-
--- TODO:
---
--- We cannot currently derive Typeable for 'IxSet':
---
---   * In ghc-7.6, Typeable isn't supported for non-* kinds.
---   * In ghc-7.8, see bug #8950. We can work around this, but I rather
---     would wait for a proper fix.
-
--- deriving instance Data (IxSet ixs a)
--- deriving instance Typeable IxSet
 
 
 --------------------------------------------------------------------------
@@ -361,11 +351,6 @@ zipWithIxList' :: All Ord ixs
                -> IxList ixs a -> IxList ixs a -> IxList ixs a
 zipWithIxList' _ Nil        Nil        = Nil
 zipWithIxList' f (x ::: xs) (y ::: ys) = f x y !::: zipWithIxList' f xs ys
-#if __GLASGOW_HASKELL__ < 800
-zipWithIxList' _ _          _          = error "Data.IxSet.Typed.zipWithIxList: impossible"
-  -- the line above is actually impossible by the types; it's just there
-  -- to please avoid the warning resulting from the exhaustiveness check
-#endif
 
 --------------------------------------------------------------------------
 -- Various instances for 'IxSet'
@@ -407,35 +392,6 @@ instance Foldable (IxSet ixs) where
   foldr f z = Fold.foldr f z . toSet
   foldl f z = Fold.foldl f z . toSet
 
--- TODO: Do we need SYBWC?
-{-
-instance ( SYBWC.Data ctx a
-         , SYBWC.Data ctx [a]
-         , SYBWC.Sat (ctx (IxSet a))
-         , SYBWC.Sat (ctx [a])
-         , Indexable a
-         , Data a
-         , Ord a
-         )
-       => SYBWC.Data ctx (IxSet a) where
-    gfoldl _ f z ixset  = z fromList `f` toList ixset
-    toConstr _ (IxSet _) = ixSetConstr
-    gunfold _ k z c  = case SYBWC.constrIndex c of
-                       1 -> k (z fromList)
-                       _ -> error "IxSet.SYBWC.Data.gunfold unexpected match"
-    dataTypeOf _ _ = ixSetDataType
-
-ixSetConstr :: SYBWC.Constr
-ixSetConstr = SYBWC.mkConstr ixSetDataType "IxSet" [] SYBWC.Prefix
-ixSetDataType :: SYBWC.DataType
-ixSetDataType = SYBWC.mkDataType "IxSet" [ixSetConstr]
--}
-
--- TODO: Do we need Default?
-{- FIXME
-instance (Indexable a, Ord a,Data a, Default a) => Default (IxSet a) where
-    defaultValue = empty
--}
 
 --------------------------------------------------------------------------
 -- 'IxSet' construction
@@ -519,7 +475,7 @@ noCalcs _ = ()
 -- 'Indexable' instance from a data type, e.g.
 --
 -- > data Foo = Foo Int String
--- >   deriving (Eq, Ord, Data, Typeable)
+-- >   deriving (Eq, Ord, Data)
 --
 -- and
 --
@@ -548,35 +504,23 @@ inferIxSet ixset typeName calName entryPoints
     = do calInfo <- reify calName
          typeInfo <- reify typeName
          let (context,binders) = case typeInfo of
-#if MIN_VERSION_template_haskell(2,11,0)
                                  TyConI (DataD ctxt _ nms _ _ _) -> (ctxt,nms)
                                  TyConI (NewtypeD ctxt _ nms _ _ _) -> (ctxt,nms)
-#else
-                                 TyConI (DataD ctxt _ nms _ _) -> (ctxt,nms)
-                                 TyConI (NewtypeD ctxt _ nms _ _) -> (ctxt,nms)
-#endif
-
                                  TyConI (TySynD _ nms _) -> ([],nms)
                                  _ -> error "IxSet.inferIxSet typeInfo unexpected match"
 
              names = map tyVarBndrToName binders
 
              typeCon = List.foldl' appT (conT typeName) (map varT names)
-#if MIN_VERSION_template_haskell(2,10,0)
+
              mkCtx c = List.foldl' appT (conT c)
-#else
-             mkCtx = classP
-#endif
+
              dataCtxConQ = concat [[mkCtx ''Data [varT name], mkCtx ''Ord [varT name]] | name <- names]
              fullContext = do
                 dataCtxCon <- sequence dataCtxConQ
                 return (context ++ dataCtxCon)
          case calInfo of
-#if MIN_VERSION_template_haskell(2,11,0)
            VarI _ _t _ ->
-#else
-           VarI _ _t _ _ ->
-#endif
                let {-
                    calType = getCalType t
                    getCalType (ForallT _names _ t') = getCalType t'
@@ -585,11 +529,7 @@ inferIxSet ixset typeName calName entryPoints
                    -}
                    mkEntryPoint n = (conE 'Ix) `appE`
                                     (sigE (varE 'Map.empty) (forallT
-#if MIN_VERSION_template_haskell(2,17,0)
                                                              (map (SpecifiedSpec <$) binders)
-#else
-                                                             binders
-#endif
                                                              (return context) $
                                                              appT (appT (conT ''Map) (conT n))
                                                                       (appT (conT ''Set) typeCon))) `appE`
@@ -606,15 +546,9 @@ inferIxSet ixset typeName calName entryPoints
                      return $ [i, ixType']  -- ++ d
            _ -> error "IxSet.inferIxSet calInfo unexpected match"
 
-#if MIN_VERSION_template_haskell(2,17,0)
 tyVarBndrToName :: TyVarBndr flag -> Name
 tyVarBndrToName (PlainTV nm _) = nm
 tyVarBndrToName (KindedTV nm _ _) = nm
-#else
-tyVarBndrToName :: TyVarBndr -> Name
-tyVarBndrToName (PlainTV nm) = nm
-tyVarBndrToName (KindedTV nm _) = nm
-#endif
 
 -- | Generically traverses the argument to find all occurences of
 -- values of type @b@ and returns them as a list.
@@ -899,44 +833,38 @@ ix @+ list = List.foldl' union empty $ map (ix @=) list
 ix @* list = List.foldl' intersection ix $ map (ix @=) list
 
 -- | Returns the subset with an index equal to the provided key.  The
--- set must be indexed over key type, doing otherwise results in
--- runtime error.
+-- set must be indexed over key type.
 getEQ :: (Indexable ixs a, IsIndexOf ix ixs)
       => ix -> IxSet ixs a -> IxSet ixs a
 getEQ = getOrd EQ
 
 -- | Returns the subset with an index less than the provided key.  The
--- set must be indexed over key type, doing otherwise results in
--- runtime error.
+-- set must be indexed over key type.
 getLT :: (Indexable ixs a, IsIndexOf ix ixs)
       => ix -> IxSet ixs a -> IxSet ixs a
 getLT = getOrd LT
 
 -- | Returns the subset with an index greater than the provided key.
--- The set must be indexed over key type, doing otherwise results in
--- runtime error.
+-- The set must be indexed over key type.
 getGT :: (Indexable ixs a, IsIndexOf ix ixs)
       => ix -> IxSet ixs a -> IxSet ixs a
 getGT = getOrd GT
 
 -- | Returns the subset with an index less than or equal to the
--- provided key.  The set must be indexed over key type, doing
--- otherwise results in runtime error.
+-- provided key.  The set must be indexed over key type.
 getLTE :: (Indexable ixs a, IsIndexOf ix ixs)
        => ix -> IxSet ixs a -> IxSet ixs a
 getLTE = getOrd2 True True False
 
 -- | Returns the subset with an index greater than or equal to the
--- provided key.  The set must be indexed over key type, doing
--- otherwise results in runtime error.
+-- provided key.  The set must be indexed over key type.
 getGTE :: (Indexable ixs a, IsIndexOf ix ixs)
        => ix -> IxSet ixs a -> IxSet ixs a
 getGTE = getOrd2 False True True
 
 -- | Returns the subset with an index within the interval provided.
 -- The bottom of the interval is closed and the top is open,
--- i. e. [k1;k2).  The set must be indexed over key type, doing
--- otherwise results in runtime error.
+-- i. e. [k1;k2).  The set must be indexed over key type.
 getRange :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> ix -> IxSet ixs a -> IxSet ixs a
 getRange k1 k2 ixset = getGTE k1 (getLT k2 ixset)
@@ -983,8 +911,7 @@ groupDescBy (IxSet _ indexes) = f (access indexes)
     f (Ix index _) = map (second Set.toAscList) (Map.toDescList index)
 
 -- | A function for building up selectors on 'IxSet's.  Used in the
--- various get* functions.  The set must be indexed over key type,
--- doing otherwise results in runtime error.
+-- various get* functions.  The set must be indexed over key type.
 
 getOrd :: (Indexable ixs a, IsIndexOf ix ixs)
        => Ordering -> ix -> IxSet ixs a -> IxSet ixs a
@@ -993,8 +920,7 @@ getOrd EQ = getOrd2 False True False
 getOrd GT = getOrd2 False False True
 
 -- | A function for building up selectors on 'IxSet's.  Used in the
--- various get* functions.  The set must be indexed over key type,
--- doing otherwise results in runtime error.
+-- various get* functions.  The set must be indexed over key type.
 getOrd2 :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
         => Bool -> Bool -> Bool -> ix -> IxSet ixs a -> IxSet ixs a
 getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)

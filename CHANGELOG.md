@@ -1,24 +1,30 @@
+Unreleased
+==========
+
+* Limit supported versions to GHC 9.2 and later.
+
+
 0.5.1.1 (2026-07-13)
 ====================
 
-- GHC 9.4 through to 9.14 compatibility.
+* GHC 9.4 through to 9.14 compatibility.
 
 0.5.1.0 (2022-05-10)
 ====================
 
-- GHC 9.0 and 9.2 compatibility.
+* GHC 9.0 and 9.2 compatibility.
 
 0.5 (2020-03-18)
 ================
 
-- GHC 8.8 (and possibly 8.10) compatibility.
+* GHC 8.8 (and possibly 8.10) compatibility.
 
-- safecopy-0.10 compatibility.
+* safecopy-0.10 compatibility.
 
 0.4.0.1 (2018-10-01)
 ====================
 
-- containers-0.6 compatibility.
+* containers-0.6 compatibility.
 
 0.4 (2018-03-18)
 ================
