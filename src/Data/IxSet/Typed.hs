@@ -459,7 +459,7 @@ instance MkIxList ixs ixs' a r => MkIxList (ix ': ixs) ixs' a (Ix ix a -> r) whe
 --
 -- This is the recommended way to create indices.
 --
-ixFun :: Ord ix => (a -> [ix]) -> Ix ix a
+ixFun :: (a -> [ix]) -> Ix ix a
 ixFun = Ix Map.empty
 
 -- | Create a generic index. Provided example is used only as type source
@@ -472,7 +472,7 @@ ixFun = Ix Map.empty
 -- In production systems consider using 'ixFun' in place of 'ixGen' as
 -- the former one is much faster.
 --
-ixGen :: forall proxy a ix. (Ord ix, Data a, Typeable ix) => proxy ix -> Ix ix a
+ixGen :: forall proxy a ix. (Data a, Typeable ix) => proxy ix -> Ix ix a
 ixGen _proxy = ixFun (flatten :: a -> [ix])
 
 --------------------------------------------------------------------------
@@ -567,7 +567,7 @@ tyVarBndrToName (KindedTV nm _ _) = nm
 -- values of type @b@ and returns them as a list.
 --
 -- This function properly handles 'String' as 'String' not as @['Char']@.
-flatten :: (Typeable a, Data a, Typeable b) => a -> [b]
+flatten :: (Data a, Typeable b) => a -> [b]
 flatten x = case cast x of
               Just y -> case cast (y :: String) of
                           Just v -> [v]
@@ -583,7 +583,7 @@ flatten x = case cast x of
 -- > flatten (x,calcs x)
 --
 -- This function properly handles 'String' as 'String' not as @['Char']@.
-flattenWithCalcs :: (Data c,Typeable a, Data a, Typeable b) => (a -> c) -> a -> [b]
+flattenWithCalcs :: (Data c, Data a, Typeable b) => (a -> c) -> a -> [b]
 flattenWithCalcs calcs x = flatten (x,calcs x)
 
 --------------------------------------------------------------------------
@@ -825,13 +825,13 @@ toDescList _ ixset = concatMap snd (groupDescBy ixset :: [(ix, [a])])
 
 -- | If the 'IxSet' is a singleton it will return the one item stored in it.
 -- If 'IxSet' is empty or has many elements this function returns 'Nothing'.
-getOne :: Ord a => IxSet ixs a -> Maybe a
+getOne :: IxSet ixs a -> Maybe a
 getOne ixset = case toList ixset of
                    [x] -> Just x
                    _   -> Nothing
 
 -- | Like 'getOne' with a user-provided default.
-getOneOr :: Ord a => a -> IxSet ixs a -> a
+getOneOr :: a -> IxSet ixs a -> a
 getOneOr def = fromMaybe def . getOne
 
 -- | Return 'True' if the 'IxSet' is empty, 'False' otherwise.

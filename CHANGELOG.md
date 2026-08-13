@@ -3,7 +3,11 @@
 
 * Add `insertSet`, `insertMany`, `deleteSet`, `deleteMany`, `filter`, `difference` and `(\\\)` operations.
 
+* Various documentation and performance improvements.
+
 * Change some internal helper functions in `Data.IxSet.Typed.Ix`.
+
+* Remove various redundant constraints.
 
 * Limit supported versions to GHC 9.2 and later.
 
