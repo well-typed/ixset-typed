@@ -9,7 +9,7 @@ module Data.IxSet.Typed.Tests where
 
 import           Control.Monad
 import           Control.Exception
-import           Data.Data         (Data, Typeable)
+import           Data.Data         (Data)
 import           Data.IxSet.Typed  as IxSet
 import           Data.Maybe
 import qualified Data.Set          as Set
@@ -19,37 +19,37 @@ import           Test.Tasty.QuickCheck
 
 data Foo
     = Foo String Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 data FooX
     = Foo1 String Int
     | Foo2 Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 data NoIdxFoo
     = NoIdxFoo Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 data BadlyIndexed
     = BadlyIndexed Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 data MultiIndex
     = MultiIndex String Int Integer (Maybe Int) (Either Bool Char)
     | MultiIndexSubset Int Bool String
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 data Triple
     = Triple Int Int Int
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 data S
     = S String
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 data G a b
     = G a b
-      deriving (Eq, Ord, Show, Data, Typeable)
+      deriving (Eq, Ord, Show, Data)
 
 fooCalcs :: Foo -> String
 fooCalcs (Foo s _) = s ++ "bar"

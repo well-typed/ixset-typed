@@ -8,14 +8,14 @@ import Data.Typeable
 
 -- Example from the documentation
 
-data Entry = Entry Author [Author] Updated Id Content deriving (Show, Eq, Ord, Data, Typeable)
-newtype Updated = Updated UTCTime                     deriving (Show, Eq, Ord, Data, Typeable)
-newtype Id = Id Int64                                 deriving (Show, Eq, Ord, Data, Typeable)
-newtype Content = Content String                      deriving (Show, Eq, Ord, Data, Typeable)
-newtype Author = Author Email                         deriving (Show, Eq, Ord, Data, Typeable)
+data Entry = Entry Author [Author] Updated Id Content deriving (Show, Eq, Ord, Data)
+newtype Updated = Updated UTCTime                     deriving (Show, Eq, Ord, Data)
+newtype Id = Id Int64                                 deriving (Show, Eq, Ord, Data)
+newtype Content = Content String                      deriving (Show, Eq, Ord, Data)
+newtype Author = Author Email                         deriving (Show, Eq, Ord, Data)
 type Email = String
 
-data Test = Test                                      deriving (Show, Eq, Ord, Data, Typeable)
+data Test = Test                                      deriving (Show, Eq, Ord, Data)
 
 type EntryIxs = '[Author, Id, Updated, Test, Word, FirstAuthor]
 type IxEntry  = IxSet EntryIxs Entry

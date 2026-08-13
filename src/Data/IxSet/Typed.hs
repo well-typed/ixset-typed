@@ -13,18 +13,18 @@ An efficient implementation of queryable sets.
 Assume you have a family of types such as:
 
 > data Entry      = Entry Author [Author] Updated Id Content
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord, Data)
 > newtype Updated = Updated UTCTime
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord, Data)
 > newtype Id      = Id Int64
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord, Data)
 > newtype Content = Content String
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord, Data)
 > newtype Author  = Author Email
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord, Data)
 > type Email      = String
 > data Test = Test
->   deriving (Show, Eq, Ord, Data, Typeable)
+>   deriving (Show, Eq, Ord, Data)
 
 1. Decide what parts of your type you want indexed and make your type
 an instance of 'Indexable'. Use 'ixFun' and 'ixGen' to build indices:
@@ -39,7 +39,7 @@ an instance of 'Indexable'. Use 'ixFun' and 'ixGen' to build indices:
     >               (ixGen (Proxy :: Proxy Updated))
     >               (ixGen (Proxy :: Proxy Test))          -- bogus index
 
-    The use of 'ixGen' requires the 'Data' and 'Typeable' instances above.
+    The use of 'ixGen' requires the 'Data' instances above.
     You can build indices manually using 'ixFun'. You can also use the
     Template Haskell function 'inferIxSet' to generate an 'Indexable'
     instance automatically.
@@ -205,7 +205,7 @@ import           Data.SafeCopy  (SafeCopy(..), contain, safeGet, safePut)
 import           Data.Semigroup (Semigroup(..))
 import           Data.Set       (Set)
 import qualified Data.Set       as Set
-import           Data.Typeable  (Typeable, cast {- , typeOf -})
+import           Data.Typeable  (Typeable, cast)
 import Language.Haskell.TH      as TH hiding (Type)
 
 --------------------------------------------------------------------------
@@ -238,17 +238,6 @@ infixr 5 :::
 (!:::) !ix !ixs = ix ::: ixs
 
 infixr 5 !:::
-
--- TODO:
---
--- We cannot currently derive Typeable for 'IxSet':
---
---   * In ghc-7.6, Typeable isn't supported for non-* kinds.
---   * In ghc-7.8, see bug #8950. We can work around this, but I rather
---     would wait for a proper fix.
-
--- deriving instance Data (IxSet ixs a)
--- deriving instance Typeable IxSet
 
 
 --------------------------------------------------------------------------
@@ -519,7 +508,7 @@ noCalcs _ = ()
 -- 'Indexable' instance from a data type, e.g.
 --
 -- > data Foo = Foo Int String
--- >   deriving (Eq, Ord, Data, Typeable)
+-- >   deriving (Eq, Ord, Data)
 --
 -- and
 --
