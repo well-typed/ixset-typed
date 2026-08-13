@@ -1,6 +1,8 @@
 Unreleased
 ==========
 
+* Add `deleteSet`, `filter`, `difference` and `(\\\)` operations.
+
 * Limit supported versions to GHC 9.2 and later.
 
 

@@ -1,23 +1,26 @@
-{-# LANGUAGE DeriveDataTypeable, FlexibleContexts, TemplateHaskell, UndecidableInstances, TemplateHaskell, DataKinds, FlexibleInstances, MultiParamTypeClasses, TypeOperators, KindSignatures #-}
+{-# LANGUAGE DeriveAnyClass, DeriveDataTypeable, DeriveGeneric, DerivingStrategies, FlexibleContexts, TemplateHaskell, UndecidableInstances, TemplateHaskell, DataKinds, FlexibleInstances, MultiParamTypeClasses, TypeOperators, KindSignatures #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Data.IxSet.Typed.Tests
   ( allTests
   ) where
 
+import           Prelude hiding (filter)
 import           Control.Monad
 import           Control.Exception
 import           Data.Data         (Data)
 import           Data.IxSet.Typed  as IxSet
 import           Data.Maybe
 import qualified Data.Set          as Set
+import           GHC.Generics      (Generic)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
 
 data Foo
-    = Foo String Int
-      deriving (Eq, Ord, Show, Data)
+    = Foo Char Int
+      deriving stock (Eq, Generic, Ord, Show, Data)
+      deriving anyclass (CoArbitrary, Function)
 
 data FooX
     = Foo1 String Int
@@ -50,14 +53,14 @@ data G a b
       deriving (Eq, Ord, Show, Data)
 
 fooCalcs :: Foo -> String
-fooCalcs (Foo s _) = s ++ "bar"
+fooCalcs (Foo s _) = s : "bar"
 
 inferIxSet "FooXs"         ''FooX         'noCalcs  [''Int, ''String]
 -- inferIxSet "BadlyIndexeds" ''BadlyIndexed 'noCalcs  [''String]
 inferIxSet "MultiIndexed"  ''MultiIndex   'noCalcs  [''String, ''Int, ''Integer, ''Bool, ''Char]
 inferIxSet "Triples"       ''Triple       'noCalcs  [''Int]
 -- inferIxSet "Gs"            ''G            'noCalcs  [''Int]
-inferIxSet "Foos"          ''Foo          'fooCalcs [''String, ''Int]
+inferIxSet "Foos"          ''Foo          'fooCalcs [''Char, ''Int]
 
 instance Indexable '[Int] S where
     indices = ixList (ixFun (\ (S x) -> [length x]))
@@ -158,6 +161,42 @@ prop_intersection ixset1 ixset2 =
     toSet (ixset1 `intersection` ixset2) ==
           toSet ixset1 `Set.intersection` toSet ixset2
 
+prop_difference :: Foos -> Foos -> Bool
+prop_difference ixset1 ixset2 =
+    toSet (ixset1 `difference` ixset2) ==
+          toSet ixset1 `Set.difference` toSet ixset2
+
+prop_filter :: Fun Foo Bool -> Foos -> Bool
+prop_filter p ixset =
+    toSet (filter (applyFun p) ixset) ==
+          Set.filter (applyFun p) (toSet ixset)
+
+-- | Two sets have the same indices if grouping by each of them agrees.
+sameIndices :: Foos -> Foos -> Bool
+sameIndices ixset1 ixset2 =
+    (groupBy ixset1 :: [(Int, [Foo])])  == groupBy ixset2 &&
+    (groupBy ixset1 :: [(Char, [Foo])]) == groupBy ixset2
+
+-- | A set has valid indices if building them afresh (using fromList) leaves
+-- them unchanged.
+validIndices :: Foos -> Bool
+validIndices ixset = sameIndices ixset (fromList (toList ixset))
+
+-- | Removing elements should leave the same indices behind as building a
+-- set from the remaining elements in the first place. In particular, a
+-- key all of whose elements have been removed should be gone from the
+-- index, not left behind with an empty set of elements.
+prop_differenceIndices :: Fun Foo Bool -> Foos -> Bool
+prop_differenceIndices p ixset = validIndices d
+  where
+    -- A genuine subset, so that keys really do get emptied. Two
+    -- independently generated sets would hardly ever overlap.
+    subset = fromList [ x | x <- toList ixset, applyFun p x ]
+    d      = ixset `difference` subset
+
+prop_filterIndices :: Fun Foo Bool -> Foos -> Bool
+prop_filterIndices p ixset = validIndices (filter (applyFun p) ixset)
+
 prop_any :: Foos -> [Int] -> Bool
 prop_any ixset idxs =
     (ixset @+ idxs) == foldr union empty (map ((@=) ixset) idxs)
@@ -170,6 +209,12 @@ setOps :: TestTree
 setOps = testGroup "set operations" $
   [ testProperty "distributivity toSet / union"        $ prop_union
   , testProperty "distributivity toSet / intersection" $ prop_intersection
+  , testProperty "distributivity toSet / difference"   $ prop_difference
+  , testProperty "distributivity toSet / filter"       $ prop_filter
+  , testProperty "indices after union"                 $ \ x y -> validIndices (x `union` y)
+  , testProperty "indices after intersection"          $ \ x y -> validIndices (x `intersection` y)
+  , testProperty "indices after difference"            $ prop_differenceIndices
+  , testProperty "indices after filter"                $ prop_filterIndices
   , testProperty "any (@+)"                            $ prop_any
   , testProperty "all (@*)"                            $ prop_all
   ]
