@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -352,11 +351,6 @@ zipWithIxList' :: All Ord ixs
                -> IxList ixs a -> IxList ixs a -> IxList ixs a
 zipWithIxList' _ Nil        Nil        = Nil
 zipWithIxList' f (x ::: xs) (y ::: ys) = f x y !::: zipWithIxList' f xs ys
-#if __GLASGOW_HASKELL__ < 800
-zipWithIxList' _ _          _          = error "Data.IxSet.Typed.zipWithIxList: impossible"
-  -- the line above is actually impossible by the types; it's just there
-  -- to please avoid the warning resulting from the exhaustiveness check
-#endif
 
 --------------------------------------------------------------------------
 -- Various instances for 'IxSet'
@@ -510,35 +504,23 @@ inferIxSet ixset typeName calName entryPoints
     = do calInfo <- reify calName
          typeInfo <- reify typeName
          let (context,binders) = case typeInfo of
-#if MIN_VERSION_template_haskell(2,11,0)
                                  TyConI (DataD ctxt _ nms _ _ _) -> (ctxt,nms)
                                  TyConI (NewtypeD ctxt _ nms _ _ _) -> (ctxt,nms)
-#else
-                                 TyConI (DataD ctxt _ nms _ _) -> (ctxt,nms)
-                                 TyConI (NewtypeD ctxt _ nms _ _) -> (ctxt,nms)
-#endif
-
                                  TyConI (TySynD _ nms _) -> ([],nms)
                                  _ -> error "IxSet.inferIxSet typeInfo unexpected match"
 
              names = map tyVarBndrToName binders
 
              typeCon = List.foldl' appT (conT typeName) (map varT names)
-#if MIN_VERSION_template_haskell(2,10,0)
+
              mkCtx c = List.foldl' appT (conT c)
-#else
-             mkCtx = classP
-#endif
+
              dataCtxConQ = concat [[mkCtx ''Data [varT name], mkCtx ''Ord [varT name]] | name <- names]
              fullContext = do
                 dataCtxCon <- sequence dataCtxConQ
                 return (context ++ dataCtxCon)
          case calInfo of
-#if MIN_VERSION_template_haskell(2,11,0)
            VarI _ _t _ ->
-#else
-           VarI _ _t _ _ ->
-#endif
                let {-
                    calType = getCalType t
                    getCalType (ForallT _names _ t') = getCalType t'
@@ -547,11 +529,7 @@ inferIxSet ixset typeName calName entryPoints
                    -}
                    mkEntryPoint n = (conE 'Ix) `appE`
                                     (sigE (varE 'Map.empty) (forallT
-#if MIN_VERSION_template_haskell(2,17,0)
                                                              (map (SpecifiedSpec <$) binders)
-#else
-                                                             binders
-#endif
                                                              (return context) $
                                                              appT (appT (conT ''Map) (conT n))
                                                                       (appT (conT ''Set) typeCon))) `appE`
@@ -568,15 +546,9 @@ inferIxSet ixset typeName calName entryPoints
                      return $ [i, ixType']  -- ++ d
            _ -> error "IxSet.inferIxSet calInfo unexpected match"
 
-#if MIN_VERSION_template_haskell(2,17,0)
 tyVarBndrToName :: TyVarBndr flag -> Name
 tyVarBndrToName (PlainTV nm _) = nm
 tyVarBndrToName (KindedTV nm _ _) = nm
-#else
-tyVarBndrToName :: TyVarBndr -> Name
-tyVarBndrToName (PlainTV nm) = nm
-tyVarBndrToName (KindedTV nm _) = nm
-#endif
 
 -- | Generically traverses the argument to find all occurences of
 -- values of type @b@ and returns them as a list.
