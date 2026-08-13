@@ -18,7 +18,7 @@ import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
 
 data Foo
-    = Foo String Int
+    = Foo Char Int
       deriving stock (Eq, Generic, Ord, Show, Data)
       deriving anyclass (CoArbitrary, Function)
 
@@ -53,14 +53,14 @@ data G a b
       deriving (Eq, Ord, Show, Data)
 
 fooCalcs :: Foo -> String
-fooCalcs (Foo s _) = s ++ "bar"
+fooCalcs (Foo s _) = s : "bar"
 
 inferIxSet "FooXs"         ''FooX         'noCalcs  [''Int, ''String]
 -- inferIxSet "BadlyIndexeds" ''BadlyIndexed 'noCalcs  [''String]
 inferIxSet "MultiIndexed"  ''MultiIndex   'noCalcs  [''String, ''Int, ''Integer, ''Bool, ''Char]
 inferIxSet "Triples"       ''Triple       'noCalcs  [''Int]
 -- inferIxSet "Gs"            ''G            'noCalcs  [''Int]
-inferIxSet "Foos"          ''Foo          'fooCalcs [''String, ''Int]
+inferIxSet "Foos"          ''Foo          'fooCalcs [''Char, ''Int]
 
 instance Indexable '[Int] S where
     indices = ixList (ixFun (\ (S x) -> [length x]))
@@ -174,8 +174,8 @@ prop_filter p ixset =
 -- | Two sets have the same indices if grouping by each of them agrees.
 sameIndices :: Foos -> Foos -> Bool
 sameIndices ixset1 ixset2 =
-    (groupBy ixset1 :: [(Int, [Foo])])    == groupBy ixset2 &&
-    (groupBy ixset1 :: [(String, [Foo])]) == groupBy ixset2
+    (groupBy ixset1 :: [(Int, [Foo])])  == groupBy ixset2 &&
+    (groupBy ixset1 :: [(Char, [Foo])]) == groupBy ixset2
 
 -- | A set has valid indices if building them afresh (using fromList) leaves
 -- them unchanged.
