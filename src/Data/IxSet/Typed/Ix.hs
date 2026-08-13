@@ -22,8 +22,6 @@ module Data.IxSet.Typed.Ix
     where
 
 import           Control.DeepSeq
--- import           Data.Generics hiding (GT)
--- import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
 import           Data.Kind
 import qualified Data.List  as List
 import           Data.Map   (Map)
@@ -41,39 +39,6 @@ data Ix (ix :: Type) (a :: Type) where
 
 instance (NFData ix, NFData a) => NFData (Ix ix a) where
   rnf (Ix m f) = rnf m `seq` f `seq` ()
-
--- deriving instance Typeable (Ix ix a)
-
-{-
- -- minimal hacky instance
-instance Data a => Data (Ix a) where
-    toConstr (Ix _ _) = con_Ix_Data
-    gunfold _ _     = error "gunfold"
-    dataTypeOf _    = ixType_Data
--}
-
-{-
-con_Ix_Data :: Constr
-con_Ix_Data = mkConstr ixType_Data "Ix" [] Prefix
-ixType_Data :: DataType
-ixType_Data = mkDataType "Happstack.Data.IxSet.Ix" [con_Ix_Data]
--}
-
-{-
-ixConstr :: SYBWC.Constr
-ixConstr = SYBWC.mkConstr ixDataType "Ix" [] SYBWC.Prefix
-ixDataType :: SYBWC.DataType
-ixDataType = SYBWC.mkDataType "Ix" [ixConstr]
--}
-
-{-
-instance (SYBWC.Data ctx a, SYBWC.Sat (ctx (Ix a)))
-       => SYBWC.Data ctx (Ix a) where
-    gfoldl = error "gfoldl Ix"
-    toConstr _ (Ix _ _)    = ixConstr
-    gunfold = error "gunfold Ix"
-    dataTypeOf _ _ = ixDataType
--}
 
 -- modification operations
 

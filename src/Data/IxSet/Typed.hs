@@ -194,7 +194,6 @@ import           Control.Arrow  (first, second)
 import           Control.DeepSeq
 import qualified Data.Foldable  as Fold
 import           Data.Generics  (Data, gmapQ)
--- import qualified Data.Generics.SYB.WithClass.Basics as SYBWC
 import qualified Data.IxSet.Typed.Ix  as Ix
 import           Data.IxSet.Typed.Ix  (Ix(Ix))
 import qualified Data.List      as List
@@ -396,35 +395,6 @@ instance Foldable (IxSet ixs) where
   foldr f z = Fold.foldr f z . toSet
   foldl f z = Fold.foldl f z . toSet
 
--- TODO: Do we need SYBWC?
-{-
-instance ( SYBWC.Data ctx a
-         , SYBWC.Data ctx [a]
-         , SYBWC.Sat (ctx (IxSet a))
-         , SYBWC.Sat (ctx [a])
-         , Indexable a
-         , Data a
-         , Ord a
-         )
-       => SYBWC.Data ctx (IxSet a) where
-    gfoldl _ f z ixset  = z fromList `f` toList ixset
-    toConstr _ (IxSet _) = ixSetConstr
-    gunfold _ k z c  = case SYBWC.constrIndex c of
-                       1 -> k (z fromList)
-                       _ -> error "IxSet.SYBWC.Data.gunfold unexpected match"
-    dataTypeOf _ _ = ixSetDataType
-
-ixSetConstr :: SYBWC.Constr
-ixSetConstr = SYBWC.mkConstr ixSetDataType "IxSet" [] SYBWC.Prefix
-ixSetDataType :: SYBWC.DataType
-ixSetDataType = SYBWC.mkDataType "IxSet" [ixSetConstr]
--}
-
--- TODO: Do we need Default?
-{- FIXME
-instance (Indexable a, Ord a,Data a, Default a) => Default (IxSet a) where
-    defaultValue = empty
--}
 
 --------------------------------------------------------------------------
 -- 'IxSet' construction

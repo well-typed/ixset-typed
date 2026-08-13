@@ -1,10 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable, FlexibleContexts, TemplateHaskell, UndecidableInstances, TemplateHaskell, DataKinds, FlexibleInstances, MultiParamTypeClasses, TypeOperators, KindSignatures #-}
 {-# OPTIONS_GHC -fdefer-type-errors -fno-warn-orphans #-}
 
--- TODO (only if SYBWC is added again):
--- Check that the SYBWC Data instance for IxSet works, by testing
--- that going to and from XML works.
-
 module Data.IxSet.Typed.Tests where
 
 import           Control.Monad
