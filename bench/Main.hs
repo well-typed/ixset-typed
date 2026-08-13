@@ -57,7 +57,7 @@ main = defaultMain [ benchmarks n | n <- sizes ]
 
 -- | Element counts at which the whole suite is run.
 sizes :: [Int]
-sizes = [1000, 10000]
+sizes = [500, 1000]
 
 --------------------------------------------------------------------------
 -- Forcing
