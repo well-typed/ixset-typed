@@ -604,11 +604,8 @@ type IndexOp =
 --
 change :: forall ixs a. Indexable ixs a
        => SetOp -> IndexOp -> a -> IxSet ixs a -> IxSet ixs a
-change opS opI x (IxSet a indexes) = IxSet (opS x a) v
+change opS opI x = changeAll (opS x) update
   where
-    v :: IxList ixs a
-    v = mapIxList' update indexes
-
     update :: forall ix. Ord ix => Ix ix a -> Ix ix a
     update (Ix index f) = Ix index' f
       where
