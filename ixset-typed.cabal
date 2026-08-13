@@ -56,10 +56,12 @@ test-suite test-ixset-typed
                      containers       >= 0.5 && < 1,
                      tasty,
                      tasty-hunit,
-                     tasty-quickcheck
+                     tasty-quickcheck,
+                     time
   hs-source-dirs:    tests
   main-is:           TestIxSetTyped.hs
   other-modules:     Data.IxSet.Typed.Tests
+                     Example
 
   ghc-options:       -Wall
 

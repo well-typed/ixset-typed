@@ -1,7 +1,9 @@
 {-# LANGUAGE DeriveDataTypeable, FlexibleContexts, TemplateHaskell, UndecidableInstances, TemplateHaskell, DataKinds, FlexibleInstances, MultiParamTypeClasses, TypeOperators, KindSignatures #-}
-{-# OPTIONS_GHC -fdefer-type-errors -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Data.IxSet.Typed.Tests where
+module Data.IxSet.Typed.Tests
+  ( allTests
+  ) where
 
 import           Control.Monad
 import           Control.Exception
@@ -51,10 +53,10 @@ fooCalcs :: Foo -> String
 fooCalcs (Foo s _) = s ++ "bar"
 
 inferIxSet "FooXs"         ''FooX         'noCalcs  [''Int, ''String]
-inferIxSet "BadlyIndexeds" ''BadlyIndexed 'noCalcs  [''String]
+-- inferIxSet "BadlyIndexeds" ''BadlyIndexed 'noCalcs  [''String]
 inferIxSet "MultiIndexed"  ''MultiIndex   'noCalcs  [''String, ''Int, ''Integer, ''Bool, ''Char]
 inferIxSet "Triples"       ''Triple       'noCalcs  [''Int]
-inferIxSet "Gs"            ''G            'noCalcs  [''Int]
+-- inferIxSet "Gs"            ''G            'noCalcs  [''Int]
 inferIxSet "Foos"          ''Foo          'fooCalcs [''String, ''Int]
 
 instance Indexable '[Int] S where
@@ -104,8 +106,8 @@ ixSetCheckSetMethods =
         3 @=? length (toList foox_set_abc)
     ]
 
-isError :: a -> Assertion
-isError x = do
+_isError :: a -> Assertion
+_isError x = do
   r <- try (return $! x)
   case r of
     Left  (ErrorCall _) -> return ()
