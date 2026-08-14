@@ -83,6 +83,7 @@ module Data.IxSet.Typed.Internal.IxSet
      getRange,
 
      -- * Grouping
+     getIxMap,
      groupBy,
      groupAscBy,
      groupDescBy,
@@ -101,7 +102,7 @@ import           Control.Arrow  (first, second)
 import           Control.DeepSeq (NFData(..))
 import qualified Data.Foldable  as Fold
 import qualified Data.IxSet.Typed.Internal.Ix  as Ix
-import           Data.IxSet.Typed.Internal.Ix  (Ix(Ix))
+import           Data.IxSet.Typed.Internal.Ix  (Ix(Ix), IxMap)
 import           Data.IxSet.Typed.Internal.IxList
 import qualified Data.List      as List
 import           Data.Map       (Map)
@@ -234,37 +235,6 @@ insertSet xs = changeAll (Set.union xs) (Ix.insertMany xs)
 insertMany :: forall ixs f a. (Indexable ixs a, Foldable f)
            => f a -> IxSet ixs a -> IxSet ixs a
 insertMany xs = changeAll (\ a -> Fold.foldl' (\ b x -> Set.insert x b) a xs) (Ix.insertMany xs)
-
-
--- | Internal helper function that takes a partial index from one index
--- set and rebuilds the rest of the structure of the index set.
---
--- We try to be really clever here. The partialindex is a Map of Sets
--- from original index. We want to reuse it as much as possible. If there
--- was a guarantee that each element is present at at most one key we
--- could reuse originalindex as it is. But there can be more, so we need to
--- add remaining ones (in updateh). Anyway we try to reuse old structure and
--- keep new allocations low as much as possible.
---
--- This is used by queries, so it produces the indices lazily.
---
-fromMapOfSets :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
-              => Map ix (Set a) -> IxSet ixs a
-fromMapOfSets partialindex =
-    IxSet a (mapAt updateh updatet indices)
-  where
-    a :: Set a
-    a = Set.unions partialindex
-
-    -- Update function for the index corresponding to partialindex.
-    -- Any key already in the partial index is there with its full
-    -- set of elements, so only the other keys need adding.
-    updateh :: Ix ix a -> Ix ix a
-    updateh (Ix _ f) = Ix.insertManyWith (\ k -> Map.notMember k partialindex) a f partialindex
-
-    -- Update function for all other indices.
-    updatet :: forall ix'. Ord ix' => Ix ix' a -> Ix ix' a
-    updatet (Ix _ f) = Ix.build a f
 
 -- | Inserts an item into the 'IxSet'.
 --
@@ -554,48 +524,77 @@ getOrd GT = getOrd2 False False True
 -- various get* functions.
 getOrd2 :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
         => Bool -> Bool -> Bool -> ix -> IxSet ixs a -> IxSet ixs a
-getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)
+getOrd2 inclt inceq incgt v = fromMapOfSets . select . getIxMap
   where
-    f :: Ix ix a -> IxSet ixs a
-    f (Ix index _) = fromMapOfSets result
+    select :: IxMap ix a -> IxMap ix a
+    select index = result
       where
-        lt', gt' :: Map ix (Set a)
+        lt', gt' :: IxMap ix a
         eq' :: Maybe (Set a)
         (lt', eq', gt') = Map.splitLookup v index
 
-        lt, gt :: Map ix (Set a)
+        lt, gt :: IxMap ix a
         lt = if inclt then lt' else Map.empty
         gt = if incgt then gt' else Map.empty
         eq :: Maybe (Set a)
         eq = if inceq then eq' else Nothing
 
-        ltgt :: Map ix (Set a)
+        ltgt :: IxMap ix a
         ltgt = Map.unionWith Set.union lt gt
 
-        result :: Map ix (Set a)
+        result :: IxMap ix a
         result = case eq of
           Just eqset -> Map.insertWith Set.union v eqset ltgt
           Nothing    -> ltgt
+
+-- | Internal helper function that takes a partial index from one index
+-- set and rebuilds the rest of the structure of the index set.
+--
+-- We try to be really clever here. The partialindex is a Map of Sets
+-- from original index. We want to reuse it as much as possible. If there
+-- was a guarantee that each element is present at at most one key we
+-- could reuse originalindex as it is. But there can be more, so we need to
+-- add remaining ones (in updateh). Anyway we try to reuse old structure and
+-- keep new allocations low as much as possible.
+--
+-- This is used by queries, so it produces the indices lazily.
+--
+fromMapOfSets :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
+              => IxMap ix a -> IxSet ixs a
+fromMapOfSets partialindex =
+    IxSet a (mapAt updateh updatet indices)
+  where
+    a :: Set a
+    a = Set.unions partialindex
+
+    -- Update function for the index corresponding to partialindex.
+    -- Any key already in the partial index is there with its full
+    -- set of elements, so only the other keys need adding.
+    updateh :: Ix ix a -> Ix ix a
+    updateh (Ix _ f) = Ix.insertManyWith (\ k -> Map.notMember k partialindex) a f partialindex
+
+    -- Update function for all other indices.
+    updatet :: forall ix'. Ord ix' => Ix ix' a -> Ix ix' a
+    updatet (Ix _ f) = Ix.build a f
 
 
 --------------------------------------------------------------------------
 -- Grouping operations
 --------------------------------------------------------------------------
 
+-- | Extract a single index map from an 'IxSet'.
+getIxMap :: forall ixs ix a . IsIndexOf ix ixs => IxSet ixs a -> Ix.IxMap ix a
+getIxMap (IxSet _ ixs) = case access ixs of
+    Ix m _ -> m
+
 -- | Returns lists of elements paired with the indices determined by
 -- type inference.
 groupBy :: forall ix ixs a. IsIndexOf ix ixs => IxSet ixs a -> [(ix, [a])]
-groupBy (IxSet _ indexes) = f (access indexes)
-  where
-    f :: Ix ix a -> [(ix, [a])]
-    f (Ix index _) = map (second Set.toList) (Map.toList index)
+groupBy = map (second Set.toList) . Map.toList . getIxMap
 
 -- | Returns the list of index keys being used for a particular index.
 indexKeys :: forall ix ixs a . IsIndexOf ix ixs => IxSet ixs a -> [ix]
-indexKeys (IxSet _ indexes) = f (access indexes)
-  where
-    f :: Ix ix a -> [ix]
-    f (Ix index _) = Map.keys index
+indexKeys = Map.keys . getIxMap
 
 -- | Returns lists of elements paired with the indices determined by
 -- type inference.
@@ -603,10 +602,7 @@ indexKeys (IxSet _ indexes) = f (access indexes)
 -- The resulting list will be sorted in ascending order by 'ix'.
 -- The values in @[a]@ will be sorted in ascending order as well.
 groupAscBy :: forall ix ixs a. IsIndexOf ix ixs =>  IxSet ixs a -> [(ix, [a])]
-groupAscBy (IxSet _ indexes) = f (access indexes)
-  where
-    f :: Ix ix a -> [(ix, [a])]
-    f (Ix index _) = map (second Set.toAscList) (Map.toAscList index)
+groupAscBy = map (second Set.toAscList) . Map.toAscList . getIxMap
 
 -- | Returns lists of elements paired with the indices determined by
 -- type inference.
@@ -618,10 +614,7 @@ groupAscBy (IxSet _ indexes) = f (access indexes)
 -- 'Set.toDescList'. So do not rely on the sort order of the
 -- resulting list.
 groupDescBy :: IsIndexOf ix ixs =>  IxSet ixs a -> [(ix, [a])]
-groupDescBy (IxSet _ indexes) = f (access indexes)
-  where
-    f :: Ix ix a -> [(ix, [a])]
-    f (Ix index _) = map (second Set.toAscList) (Map.toDescList index)
+groupDescBy = map (second Set.toAscList) . Map.toDescList . getIxMap
 
 
 --------------------------------------------------------------------------
