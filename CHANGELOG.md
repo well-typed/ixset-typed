@@ -18,9 +18,11 @@
   - `fromSet` and `fromList` now compute the indices lazily (but remain
     spine-strict in the elements).
 
-  - `union` and `intersection` now compute the indices lazily (until the index
-    is accessed, then it is computed in full).  Previously they would compute
-    them partially (using lazy `Map` operations).
+  - The existing `union` and `intersection` set operations, and the new `filter`
+    and `difference`, compute the indices lazily (waiting until the index is
+    accessed, then it is computed in full).  Previously `union` and
+    `intersection` would compute the indices partially (walking the index list
+    strictly, but then using lazy `Map` operations).
 
 * Add `forceIndices`, which can be used to ensure the indices are evaluated
   after using operations that are now lazy in the index construction.

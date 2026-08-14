@@ -105,8 +105,9 @@ and 'empty' to build up an 'IxSet' collection:
 
     > entries @= (FirstAuthor "john@doe.com")  -- guess what this does
 
+= Strictness
 
-On strictness: An 'IxSet' is "mostly" spine-strict: it is generally spine-strict
+An 'IxSet' is "mostly" spine-strict: it is generally spine-strict
 in the set itself, but tries to avoid building the indices until they are
 needed. Thus:
 
@@ -1055,10 +1056,10 @@ groupDescBy (IxSet _ indexes) = f (access indexes)
 -- | Evaluate the indices contained within an 'IxSet'.  Call this after a lazy
 -- operation such as 'fromSet', 'fromList' or a query, to perform the work of
 -- building the indices immediately rather than deferring it until they are
--- used.  The underyling 'Set' does not need to be forced as it is stored
+-- used.  The underlying 'Set' does not need to be forced as it is stored
 -- spine-strictly.
 --
-forceIndices :: IxSet ix a -> IxSet ix a
+forceIndices :: IxSet ixs a -> IxSet ixs a
 forceIndices (IxSet set ixlist) = IxSet set $! forceIxList ixlist
 
 forceIxList :: forall ixs a . IxList ixs a -> IxList ixs a
@@ -1083,6 +1084,9 @@ forceIxList (ix ::: ixs) = ix !::: forceIxList ixs
 --   4. number of values in all keys in all indices.
 --
 -- This can aid you in debugging and optimisation.
+--
+-- Evaluating the third or fourth components of the quadruple will
+-- cause the indices to be forced (cf. 'forceIndices').
 --
 stats :: IxSet ixs a -> (Int,Int,Int,Int)
 stats (IxSet a ixs) = (no_elements,no_indexes,no_keys,no_values)

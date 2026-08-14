@@ -10,6 +10,7 @@ private to @Data.IxSet.Typed@.
 -}
 module Data.IxSet.Typed.Ix
     ( Ix(..)
+    , IxMap
     , insert
     , insertMany
     , delete
@@ -112,8 +113,8 @@ union (Ix a f) (Ix b _) = Ix (Map.Strict.unionWith Set.union a b) f
 -- to be the same.
 --
 -- This is strict, so that once the index is forced it will be recomputed in
--- full. The caller ('Data.IxSet.Typed.union') will avoid forcing it until
--- needed.
+-- full. The caller ('Data.IxSet.Typed.intersection') will avoid forcing it
+-- until needed.
 --
 intersection :: (Ord a, Ord ix)
              => Ix ix a -> Ix ix a -> Ix ix a
@@ -133,7 +134,7 @@ intersectionIxMap = Map.Strict.merge
 -- function is assumed to be the same.
 --
 -- This is strict, so that once the index is forced it will be recomputed in
--- full. The caller ('Data.IxSet.Typed.union') will avoid forcing it until
+-- full. The caller ('Data.IxSet.Typed.difference') will avoid forcing it until
 -- needed.
 --
 difference :: (Ord a, Ord ix)
