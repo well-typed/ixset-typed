@@ -24,6 +24,7 @@ module Data.IxSet.Typed.Internal.IxList
     , All
     , IsIndexOf(..)
     , Indexable(..)
+    , project
     , lengthIxList
     , foldlIxList'
     , mapIxList
@@ -38,7 +39,7 @@ import Control.DeepSeq (NFData(..))
 import Data.Kind (Type, Constraint)
 import Prelude hiding (filter, null)
 
-import Data.IxSet.Typed.Internal.Ix (Ix)
+import Data.IxSet.Typed.Internal.Ix (Ix(Ix))
 
 data IxList (ixs :: [Type]) (a :: Type) where
   Nil   :: IxList '[] a
@@ -125,6 +126,11 @@ instance
   IsIndexOf ix ixs => IsIndexOf ix (ix' ': ixs) where
   access (_x ::: xs)     = access xs
   mapAt fh ft (x ::: xs) = ft x ::: mapAt fh ft xs
+
+-- | Project out the indices from a value of an 'Indexable' type.
+project :: forall proxy ixs ix a . (Indexable ixs a, IsIndexOf ix ixs) => proxy ixs -> a -> [ix]
+project _ = case access (indices :: IxList ixs a) :: Ix ix a of
+              Ix _ f -> f
 
 -- | Return the length of an index list.
 --

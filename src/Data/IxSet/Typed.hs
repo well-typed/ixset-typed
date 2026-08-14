@@ -225,7 +225,8 @@ module Data.IxSet.Typed
 
      -- * Debugging and optimization
      forceIndices,
-     stats
+     stats,
+     project
 )
 where
 

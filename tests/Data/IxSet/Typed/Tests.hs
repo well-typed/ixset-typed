@@ -11,6 +11,7 @@ import           Control.Exception
 import           Data.Data         (Data)
 import           Data.IxSet.Typed  as IxSet
 import           Data.Maybe
+import           Data.Proxy        (Proxy (..))
 import qualified Data.Set          as Set
 import           GHC.Generics      (Generic)
 import           Test.Tasty
@@ -283,6 +284,13 @@ funIndexes =
         3 @=? size (funSet @>=<= (3 :: Int, 7 :: Int))
     ]
 
+projectIndices :: TestTree
+projectIndices =
+  testGroup "project indices" $
+    [ testCase "projects out length" $
+        project (Proxy :: Proxy '[Int]) (S "abc") @=? [3 :: Int]
+    ]
+
 bigSet :: Int -> MultiIndexed
 bigSet n = fromList $
     [ MultiIndex string int integer maybe_int either_bool_char |
@@ -325,6 +333,7 @@ allTests =
       , multiIndexed
       , testTriple
       , funIndexes
+      , projectIndices
       ]
     , testGroup "properties" $
       [ sizeEqToListLength

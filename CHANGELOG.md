@@ -1,11 +1,15 @@
 0.6 (Unreleased)
 ================
 
-* Add lookup operations: `lookupIx`, `lookupIxMany`.
+* Add various new API functions:
 
-* Add bulk modification operations: `insertSet`, `insertMany`, `deleteSet`, `deleteMany`, `deleteIxMany`.
+  - Lookup: `lookupIx`, `lookupIxMany`
 
-* Add set operations: `filter`, `difference`, `(\\\)`.
+  - Bulk modification: `insertSet`, `insertMany`, `deleteSet`, `deleteMany`, `deleteIxMany`
+
+  - Set operations: `filter`, `difference`, `(\\\)`
+
+  - Project out indices from values of an `Indexable` type: `project`
 
 * Significant performance-related changes, including changes to
   strictness/laziness and removal of intermediate datastructures, which should
