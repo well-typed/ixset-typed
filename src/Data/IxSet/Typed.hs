@@ -162,6 +162,7 @@ module Data.IxSet.Typed
      deleteMany,
      updateIx,
      deleteIx,
+     deleteIxMany,
 
      -- * Creation
      empty,
@@ -207,6 +208,10 @@ module Data.IxSet.Typed
      getLTE,
      getGTE,
      getRange,
+
+     -- * Lookup
+     lookupIx,
+     lookupIxMany,
 
      -- * Grouping
      groupBy,

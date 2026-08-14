@@ -36,6 +36,7 @@ module Data.IxSet.Typed.Internal.IxSet
      deleteMany,
      updateIx,
      deleteIx,
+     deleteIxMany,
 
      -- * Creation
      empty,
@@ -81,6 +82,10 @@ module Data.IxSet.Typed.Internal.IxSet
      getLTE,
      getGTE,
      getRange,
+
+     -- * Lookup
+     lookupIx,
+     lookupIxMany,
 
      -- * Grouping
      getIxMap,
@@ -295,6 +300,14 @@ deleteIx :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> IxSet ixs a -> IxSet ixs a
 deleteIx i ixset = maybe ixset (flip delete ixset) $
                        getOne $ ixset @= i
+
+-- | Delete all values with any of the given indices.  Unlike 'deleteIx', this
+-- works even if an index matches multiple values.
+--
+-- This will update the indices strictly.
+--
+deleteIxMany :: forall ixs ix a . (Indexable ixs a, IsIndexOf ix ixs) => [ix] -> IxSet ixs a -> IxSet ixs a
+deleteIxMany ixs ixset = deleteMany ixset (ixset @+ ixs)
 
 
 --------------------------------------------------------------------------
@@ -576,6 +589,25 @@ fromMapOfSets partialindex =
     -- Update function for all other indices.
     updatet :: forall ix'. Ord ix' => Ix ix' a -> Ix ix' a
     updatet (Ix _ f) = Ix.build a f
+
+
+--------------------------------------------------------------------------
+-- Lookup
+--------------------------------------------------------------------------
+
+-- | Look up elements in the 'IxSet' that match the given index exactly,
+-- returning the results as a 'Set'.
+--
+lookupIx :: IsIndexOf ix ixs => ix -> IxSet ixs a -> Set.Set a
+lookupIx i = Map.findWithDefault Set.empty i . getIxMap
+
+-- | Look up elements in the 'IxSet' that match at least one of the indices in
+-- the given 'Foldable' collection, returning the results as a 'Set'.
+--
+lookupIxMany :: (Indexable ixs a, IsIndexOf ix ixs, Foldable f) => f ix -> IxSet ixs a -> Set.Set a
+lookupIxMany is ixs = foldl' (\ s i -> maybe s (Set.union s) (Map.lookup i m)) Set.empty is
+  where
+    m = getIxMap ixs
 
 
 --------------------------------------------------------------------------

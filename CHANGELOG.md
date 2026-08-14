@@ -1,7 +1,9 @@
 0.6 (Unreleased)
 ================
 
-* Add bulk modification operations: `insertSet`, `insertMany`, `deleteSet`, `deleteMany`.
+* Add lookup operations: `lookupIx`, `lookupIxMany`.
+
+* Add bulk modification operations: `insertSet`, `insertMany`, `deleteSet`, `deleteMany`, `deleteIxMany`.
 
 * Add set operations: `filter`, `difference`, `(\\\)`.
 
