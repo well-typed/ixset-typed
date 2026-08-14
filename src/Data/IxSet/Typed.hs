@@ -966,6 +966,46 @@ getRange :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> ix -> IxSet ixs a -> IxSet ixs a
 getRange k1 k2 ixset = getGTE k1 (getLT k2 ixset)
 
+-- | A function for building up selectors on 'IxSet's.  Used in the
+-- various get* functions.
+getOrd :: (Indexable ixs a, IsIndexOf ix ixs)
+       => Ordering -> ix -> IxSet ixs a -> IxSet ixs a
+getOrd LT = getOrd2 True False False
+getOrd EQ = getOrd2 False True False
+getOrd GT = getOrd2 False False True
+
+-- | A function for building up selectors on 'IxSet's.  Used in the
+-- various get* functions.
+getOrd2 :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
+        => Bool -> Bool -> Bool -> ix -> IxSet ixs a -> IxSet ixs a
+getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)
+  where
+    f :: Ix ix a -> IxSet ixs a
+    f (Ix index _) = fromMapOfSets result
+      where
+        lt', gt' :: Map ix (Set a)
+        eq' :: Maybe (Set a)
+        (lt', eq', gt') = Map.splitLookup v index
+
+        lt, gt :: Map ix (Set a)
+        lt = if inclt then lt' else Map.empty
+        gt = if incgt then gt' else Map.empty
+        eq :: Maybe (Set a)
+        eq = if inceq then eq' else Nothing
+
+        ltgt :: Map ix (Set a)
+        ltgt = Map.unionWith Set.union lt gt
+
+        result :: Map ix (Set a)
+        result = case eq of
+          Just eqset -> Map.insertWith Set.union v eqset ltgt
+          Nothing    -> ltgt
+
+
+--------------------------------------------------------------------------
+-- Grouping operations
+--------------------------------------------------------------------------
+
 -- | Returns lists of elements paired with the indices determined by
 -- type inference.
 groupBy :: forall ix ixs a. IsIndexOf ix ixs => IxSet ixs a -> [(ix, [a])]
@@ -1007,41 +1047,10 @@ groupDescBy (IxSet _ indexes) = f (access indexes)
     f :: Ix ix a -> [(ix, [a])]
     f (Ix index _) = map (second Set.toAscList) (Map.toDescList index)
 
--- | A function for building up selectors on 'IxSet's.  Used in the
--- various get* functions.
-getOrd :: (Indexable ixs a, IsIndexOf ix ixs)
-       => Ordering -> ix -> IxSet ixs a -> IxSet ixs a
-getOrd LT = getOrd2 True False False
-getOrd EQ = getOrd2 False True False
-getOrd GT = getOrd2 False False True
 
--- | A function for building up selectors on 'IxSet's.  Used in the
--- various get* functions.
-getOrd2 :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
-        => Bool -> Bool -> Bool -> ix -> IxSet ixs a -> IxSet ixs a
-getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)
-  where
-    f :: Ix ix a -> IxSet ixs a
-    f (Ix index _) = fromMapOfSets result
-      where
-        lt', gt' :: Map ix (Set a)
-        eq' :: Maybe (Set a)
-        (lt', eq', gt') = Map.splitLookup v index
-
-        lt, gt :: Map ix (Set a)
-        lt = if inclt then lt' else Map.empty
-        gt = if incgt then gt' else Map.empty
-        eq :: Maybe (Set a)
-        eq = if inceq then eq' else Nothing
-
-        ltgt :: Map ix (Set a)
-        ltgt = Map.unionWith Set.union lt gt
-
-        result :: Map ix (Set a)
-        result = case eq of
-          Just eqset -> Map.insertWith Set.union v eqset ltgt
-          Nothing    -> ltgt
-
+--------------------------------------------------------------------------
+-- Debugging and optimization
+--------------------------------------------------------------------------
 
 -- | Evaluate the indices contained within an 'IxSet'.  Call this after a lazy
 -- operation such as 'fromSet', 'fromList' or a query, to perform the work of
