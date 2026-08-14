@@ -57,7 +57,7 @@ main = defaultMain [ benchmarks n | n <- sizes ]
 
 -- | Element counts at which the whole suite is run.
 sizes :: [Int]
-sizes = [1000, 10000]
+sizes = [500, 1000]
 
 --------------------------------------------------------------------------
 -- Forcing
@@ -175,6 +175,8 @@ construction :: Fixture -> Forcer -> [(String, Benchmarkable)]
 construction fx forcer =
   [ ("fromList",           forcer (IxSet.fromList :: [Entry] -> Entries) es)
   , ("fromSet",            forcer (IxSet.fromSet :: Set Entry -> Entries) (fxSet fx))
+  , ("fromList (seq ixs)", forcer (IxSet.forceIndices . IxSet.fromList :: [Entry] -> Entries) es)
+  , ("fromSet (seq ixs)",  forcer (IxSet.forceIndices . IxSet.fromSet :: Set Entry -> Entries) (fxSet fx))
   , ("insertList",         forcer (\ xs -> IxSet.insertList xs IxSet.empty :: Entries) es)
   , ("repeated insert",    forcer (List.foldl' (flip IxSet.insert) (IxSet.empty :: Entries)) es)
   , ("Set.fromList (ref)", forcer Set.fromList es)
@@ -262,11 +264,14 @@ query fx forcer =
 setOperations :: Fixture -> Forcer -> [(String, Benchmarkable)]
 setOperations fx forcer =
   [ ("union",                   forcer (IxSet.union ixs) ixs')
+  , ("union (seq ixs)",         forcer (IxSet.forceIndices . IxSet.union ixs) ixs')
   , ("intersection",            forcer (IxSet.intersection ixs) ixs')
+  , ("intersection (seq ixs)",  forcer (IxSet.forceIndices . IxSet.intersection ixs) ixs')
   , ("difference",              forcer (IxSet.difference ixs) ixs')
+  , ("difference (seq ixs)",    forcer (IxSet.forceIndices . IxSet.difference ixs) ixs')
   , ("(|||)",                   forcer (ixs |||) ixs')
   , ("(&&&)",                   forcer (ixs &&&) ixs')
-  , ("(\\\\\\)",                   forcer (ixs \\\) ixs')
+  , ("(\\\\\\)",                forcer (ixs \\\) ixs')
   , ("Set.union (ref)",         forcer (Set.union (fxSet fx)) (IxSet.toSet ixs'))
   , ("Set.intersection (ref)",  forcer (Set.intersection (fxSet fx)) (IxSet.toSet ixs'))
   , ("Set.difference (ref)",    forcer (Set.difference (fxSet fx)) (IxSet.toSet ixs'))

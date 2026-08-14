@@ -105,6 +105,30 @@ and 'empty' to build up an 'IxSet' collection:
 
     > entries @= (FirstAuthor "john@doe.com")  -- guess what this does
 
+= Strictness
+
+An 'IxSet' is "mostly" spine-strict: it is generally spine-strict
+in the set itself, but tries to avoid building the indices until they are
+needed. Thus:
+
+ * Construction operations ('fromSet' and 'fromList') will evaluate the elements
+   to build the underlying set, but will build the indices lazily. Since the
+   only data the index construction retains are elements of the set, this should not
+   cause a significant space leak.  However, if you wish to perform the index
+   construction up front rather than deferring it until the indices are forced,
+   use 'forceIndices'.
+
+ * Index lookups (such as 'getEQ') and other query operations (including 'filter',
+   'union' and 'intersection') are lazy in the indices, so querying a number of
+   times and subsequently selecting the result will not unnecessarily rebuild all
+   indices. This could result in a space leak if you repeatedly query and then
+   retain the resulting 'IxSet' without looking at the results.  Again, you can
+   use 'forceIndices' to avoid this.
+
+ * Operations that modify 'IxSet' (e.g. 'insert', 'delete', 'updateIx') are
+   spine-strict in the indices as well. This avoids retaining old copies of the
+   'IxSet' as it is modified.  There are currently no lazy modification operations.
+
 -}
 
 module Data.IxSet.Typed
@@ -131,9 +155,11 @@ module Data.IxSet.Typed
      change,
      insert,
      insertList,
+     insertSet,
+     insertMany,
      delete,
      deleteSet,
-     filter,
+     deleteMany,
      updateIx,
      deleteIx,
 
@@ -161,6 +187,7 @@ module Data.IxSet.Typed
      union,
      intersection,
      difference,
+     filter,
 
      -- * Indexing
      (@=),
@@ -180,6 +207,8 @@ module Data.IxSet.Typed
      getLTE,
      getGTE,
      getRange,
+
+     -- * Grouping
      groupBy,
      groupAscBy,
      groupDescBy,
@@ -190,6 +219,7 @@ module Data.IxSet.Typed
      flattenWithCalcs,
 
      -- * Debugging and optimization
+     forceIndices,
      stats
 )
 where
@@ -219,18 +249,11 @@ import Language.Haskell.TH      as TH hiding (Type)
 
 -- | Set with associated indices.
 --
--- The type-level list 'ixs' contains all types that are valid index keys.
--- The type 'a' is the type of elements in the indexed set.
---
--- On strictness: An 'IxSet' is "mostly" spine-strict. It is generally
--- spine-strict in the set itself. All operations on 'IxSet' with the
--- exception of queries are spine-strict in the indices as well. Query
--- operations, however, are lazy in the indices, so querying a number of
--- times and subsequently selecting the result will not unnecessarily
--- rebuild all indices.
+-- The type-level list 'ixs' contains all types that are valid index keys. The
+-- type 'a' is the type of elements in the indexed set.
 --
 data IxSet (ixs :: [Type]) (a :: Type) where
-  IxSet :: !(Set a) -> !(IxList ixs a) -> IxSet ixs a
+  IxSet :: !(Set a) -> IxList ixs a -> IxSet ixs a
 
 data IxList (ixs :: [Type]) (a :: Type) where
   Nil   :: IxList '[] a
@@ -317,20 +340,15 @@ instance
 --
 -- TODO: Could be statically unrolled.
 lengthIxList :: forall ixs a. IxList ixs a -> Int
-lengthIxList = go 0
-  where
-    go :: forall ixs'. Int -> IxList ixs' a -> Int
-    go !acc Nil        = acc
-    go !acc (_ ::: xs) = go (acc + 1) xs
+lengthIxList = foldlIxList' (\ n _ -> succ n) 0
 
--- | Turn an index list into a normal list, given a function that
--- turns an arbitrary index into an element of a fixed type @r@.
-ixListToList :: All Ord ixs
-             => (forall ix. Ord ix => Ix ix a -> r)
-                  -- ^ what to do with each index
-             -> IxList ixs a -> [r]
-ixListToList _ Nil        = []
-ixListToList f (x ::: xs) = f x : ixListToList f xs
+-- | Strict left fold over an index list.
+foldlIxList' :: forall ixs a b. (forall ix . b -> Ix ix a -> b) -> b -> IxList ixs a -> b
+foldlIxList' c = go
+  where
+    go :: forall ixs'. b -> IxList ixs' a -> b
+    go !acc Nil        = acc
+    go !acc (x ::: xs) = go (c acc x) xs
 
 -- | Map over an index list.
 mapIxList :: All Ord ixs
@@ -348,13 +366,14 @@ mapIxList' :: All Ord ixs
 mapIxList' _ Nil        = Nil
 mapIxList' f (x ::: xs) = f x !::: mapIxList' f xs
 
--- | Zip two index lists of compatible type (spine-strict).
-zipWithIxList' :: All Ord ixs
-               => (forall ix. Ord ix => Ix ix a -> Ix ix a -> Ix ix a)
-                    -- ^ how to combine two corresponding indices
-               -> IxList ixs a -> IxList ixs a -> IxList ixs a
-zipWithIxList' _ Nil        Nil        = Nil
-zipWithIxList' f (x ::: xs) (y ::: ys) = f x y !::: zipWithIxList' f xs ys
+-- | Zip two index lists of compatible type (lazy).
+zipWithIxList :: All Ord ixs
+              => (forall ix. Ord ix => Ix ix a -> Ix ix a -> Ix ix a)
+                   -- ^ how to combine two corresponding indices
+              -> IxList ixs a -> IxList ixs a -> IxList ixs a
+zipWithIxList _ Nil        Nil        = Nil
+zipWithIxList f (x ::: xs) (y ::: ys) = f x y ::: zipWithIxList f xs ys
+
 
 --------------------------------------------------------------------------
 -- Various instances for 'IxSet'
@@ -450,7 +469,7 @@ instance MkIxList ixs ixs' a r => MkIxList (ix ': ixs) ixs' a (Ix ix a -> r) whe
 --
 -- This is the recommended way to create indices.
 --
-ixFun :: Ord ix => (a -> [ix]) -> Ix ix a
+ixFun :: (a -> [ix]) -> Ix ix a
 ixFun = Ix Map.empty
 
 -- | Create a generic index. Provided example is used only as type source
@@ -463,7 +482,7 @@ ixFun = Ix Map.empty
 -- In production systems consider using 'ixFun' in place of 'ixGen' as
 -- the former one is much faster.
 --
-ixGen :: forall proxy a ix. (Ord ix, Data a, Typeable ix) => proxy ix -> Ix ix a
+ixGen :: forall proxy a ix. (Data a, Typeable ix) => proxy ix -> Ix ix a
 ixGen _proxy = ixFun (flatten :: a -> [ix])
 
 --------------------------------------------------------------------------
@@ -558,7 +577,7 @@ tyVarBndrToName (KindedTV nm _ _) = nm
 -- values of type @b@ and returns them as a list.
 --
 -- This function properly handles 'String' as 'String' not as @['Char']@.
-flatten :: (Typeable a, Data a, Typeable b) => a -> [b]
+flatten :: (Data a, Typeable b) => a -> [b]
 flatten x = case cast x of
               Just y -> case cast (y :: String) of
                           Just v -> [v]
@@ -574,7 +593,7 @@ flatten x = case cast x of
 -- > flatten (x,calcs x)
 --
 -- This function properly handles 'String' as 'String' not as @['Char']@.
-flattenWithCalcs :: (Data c,Typeable a, Data a, Typeable b) => (a -> c) -> a -> [b]
+flattenWithCalcs :: (Data c, Data a, Typeable b) => (a -> c) -> a -> [b]
 flattenWithCalcs calcs x = flatten (x,calcs x)
 
 --------------------------------------------------------------------------
@@ -590,13 +609,13 @@ type IndexOp =
 -- | Higher order operator for modifying 'IxSet's.  Use this when your
 -- final function should have the form @a -> 'IxSet' a -> 'IxSet' a@,
 -- e.g. 'insert' or 'delete'.
+--
+-- This will update the indices strictly.
+--
 change :: forall ixs a. Indexable ixs a
        => SetOp -> IndexOp -> a -> IxSet ixs a -> IxSet ixs a
-change opS opI x (IxSet a indexes) = IxSet (opS x a) v
+change opS opI x = changeAll (opS x) update
   where
-    v :: IxList ixs a
-    v = mapIxList' update indexes
-
     update :: forall ix. Ord ix => Ix ix a -> Ix ix a
     update (Ix index f) = Ix index' f
       where
@@ -607,26 +626,43 @@ change opS opI x (IxSet a indexes) = IxSet (opS x a) v
         index' :: Map ix (Set a)
         index' = List.foldl' ii index ds
 
+-- | Higher-order operator for modifying 'IxSet's.
+--
+-- This will update the indices strictly.
+--
+changeAll :: All Ord ixs
+          => (Set a -> Set a)
+          -> (forall ix. Ord ix => Ix ix a -> Ix ix a)
+          -> IxSet ixs a -> IxSet ixs a
+changeAll f g (IxSet set indexes) = IxSet (f set) $! mapIxList' g indexes
+
+-- | Insert a list of elements into an 'IxSet'.  (See also 'insertMany'.)
+--
+-- This will update the indices strictly.
+--
 insertList :: forall ixs a. Indexable ixs a
            => [a] -> IxSet ixs a -> IxSet ixs a
-insertList xs (IxSet a indexes) = IxSet (List.foldl' (\ b x -> Set.insert x b) a xs) v
-  where
-    v :: IxList ixs a
-    v = mapIxList' update indexes
+insertList = insertMany
 
-    update :: forall ix. Ord ix => Ix ix a -> Ix ix a
-    update (Ix index f) = Ix index' f
-      where
-        dss :: [(ix, a)]
-        dss = [(k, x) | x <- xs, k <- f x]
+-- | Insert a 'Set' of elements into an 'IxSet'.
+--
+-- This will update the indices strictly.
+--
+insertSet :: forall ixs a. (Indexable ixs a)
+           => Set a -> IxSet ixs a -> IxSet ixs a
+insertSet xs = changeAll (Set.union xs) (Ix.insertMany xs)
 
-        index' :: Map ix (Set a)
-        index' = Ix.insertList dss index
+-- | Insert a 'Foldable' collection of elements into an 'IxSet'.
+--
+-- This will update the indices strictly.
+--
+insertMany :: forall ixs f a. (Indexable ixs a, Foldable f)
+           => f a -> IxSet ixs a -> IxSet ixs a
+insertMany xs = changeAll (\ a -> Fold.foldl' (\ b x -> Set.insert x b) a xs) (Ix.insertMany xs)
+
 
 -- | Internal helper function that takes a partial index from one index
 -- set and rebuilds the rest of the structure of the index set.
---
--- Slightly rewritten comment from original version regarding dss / index':
 --
 -- We try to be really clever here. The partialindex is a Map of Sets
 -- from original index. We want to reuse it as much as possible. If there
@@ -634,76 +670,82 @@ insertList xs (IxSet a indexes) = IxSet (List.foldl' (\ b x -> Set.insert x b) a
 -- could reuse originalindex as it is. But there can be more, so we need to
 -- add remaining ones (in updateh). Anyway we try to reuse old structure and
 -- keep new allocations low as much as possible.
+--
+-- This is used by queries, so it produces the indices lazily.
+--
 fromMapOfSets :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
               => Map ix (Set a) -> IxSet ixs a
 fromMapOfSets partialindex =
     IxSet a (mapAt updateh updatet indices)
   where
     a :: Set a
-    a = Set.unions (Map.elems partialindex)
-
-    xs :: [a]
-    xs = Set.toList a
+    a = Set.unions partialindex
 
     -- Update function for the index corresponding to partialindex.
+    -- Any key already in the partial index is there with its full
+    -- set of elements, so only the other keys need adding.
     updateh :: Ix ix a -> Ix ix a
-    updateh (Ix _ f) = Ix ix f
-      where
-        dss :: [(ix, a)]
-        dss = [(k, x) | x <- xs, k <- f x, not (Map.member k partialindex)]
-
-        ix :: Map ix (Set a)
-        ix = Ix.insertList dss partialindex
+    updateh (Ix _ f) = Ix.insertManyWith (\ k -> Map.notMember k partialindex) a f partialindex
 
     -- Update function for all other indices.
     updatet :: forall ix'. Ord ix' => Ix ix' a -> Ix ix' a
-    updatet (Ix _ f) = Ix ix f
-      where
-        dss :: [(ix', a)]
-        dss = [(k, x) | x <- xs, k <- f x]
+    updatet (Ix _ f) = Ix.build a f
 
-        ix :: Map ix' (Set a)
-        ix = Ix.fromList dss
-
--- | Inserts an item into the 'IxSet'. If your data happens to have
--- a primary key this function might not be what you want. See
--- 'updateIx'.
+-- | Inserts an item into the 'IxSet'.
+--
+-- If your data happens to have a primary key this function might not be what
+-- you want, because it allows two values to coexist in the set with the same
+-- primary key. See 'updateIx'.
+--
+-- This will update the indices strictly.
+--
 insert :: Indexable ixs a => a -> IxSet ixs a -> IxSet ixs a
 insert = change Set.insert Ix.insert
 
 -- | Removes an item from the 'IxSet'.
+--
+-- This will update the indices strictly.
+--
 delete :: Indexable ixs a => a -> IxSet ixs a -> IxSet ixs a
 delete = change Set.delete Ix.delete
 
--- | Remove every item in the second 'IxSet' from the first 'IxSet'.
-difference :: forall ixs a. Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
-difference (IxSet elements ixs) (IxSet deletes deleteIxs) =
-  IxSet (elements `Set.difference` deletes) $
-    zipWithIxList' diffIx ixs deleteIxs
-  where
-  diffIx (Ix ix ixer) (Ix delIx _) = Ix (Ix.difference ix delIx) ixer
-
 -- | Remove every element of a 'Set' from an 'IxSet'.
+--
+-- This will update the indices strictly.
+--
 deleteSet :: Indexable ixs a => Set a -> IxSet ixs a -> IxSet ixs a
-deleteSet deletes set = set `difference` fromSet deletes
+deleteSet deletes = changeAll (`Set.difference` deletes) (Ix.deleteMany deletes)
 
--- | Remove elements from an `IxSet` not matching a predicate.
-filter :: Indexable ixs a => (a -> Bool) -> IxSet ixs a -> IxSet ixs a
-filter p ixset@(IxSet elements _ixs) =
-  ixset `difference` fromSet (Set.filter (not . p) elements)
+-- | Remove every element of a 'Foldable' collection from an 'IxSet'.
+--
+-- This will update the indices strictly.
+--
+deleteMany :: (Indexable ixs a, Foldable t) => t a -> IxSet ixs a -> IxSet ixs a
+deleteMany deletes = changeAll (\ s -> Fold.foldl' (flip Set.delete) s deletes) (Ix.deleteMany deletes)
 
--- | Will replace the item with the given index of type 'ix'.
--- Only works if there is at most one item with that index in the 'IxSet'.
--- Will not change 'IxSet' if you have more than one item with given index.
+-- | Replace the item with the given index of type 'ix'. Only works if there is
+-- at most one item with that index in the 'IxSet'.
+--
+-- If you have more than one item with given index, the new item will be
+-- inserted in addition to the existing items.  (NB: this is contrary to the
+-- documentation in previous versions of @ixset-typed@ and @ixset@, which
+-- incorrectly claimed the set would not be modified in this case.)
+--
+-- This will update the indices strictly.
+--
 updateIx :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> a -> IxSet ixs a -> IxSet ixs a
 updateIx i new ixset = insert new $
                      maybe ixset (flip delete ixset) $
                      getOne $ ixset @= i
 
--- | Will delete the item with the given index of type 'ix'.
--- Only works if there is at  most one item with that index in the 'IxSet'.
+-- | Delete the item with the given index of type 'ix'. Only works if there is
+-- at most one item with that index in the 'IxSet'.
+--
 -- Will not change 'IxSet' if you have more than one item with given index.
+--
+-- This will update the indices strictly.
+--
 deleteIx :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> IxSet ixs a -> IxSet ixs a
 deleteIx i ixset = maybe ixset (flip delete ixset) $
@@ -719,18 +761,32 @@ toSet :: IxSet ixs a -> Set a
 toSet (IxSet a _) = a
 
 -- | Converts a 'Set' to an 'IxSet'.
-fromSet :: (Indexable ixs a) => Set a -> IxSet ixs a
-fromSet = fromList . Set.toList
+--
+-- This is strict in the 'Set' but lazy in the construction of indices, so they
+-- are not built until needed.
+--
+fromSet :: forall ixs a. (Indexable ixs a) => Set a -> IxSet ixs a
+fromSet s = IxSet s makeIndices
+  where
+    makeIndices :: IxList ixs a
+    makeIndices = mapIxList (Ix.insertMany s) indices
 
 -- | Converts a list to an 'IxSet'.
+--
+-- This is spine-strict in the list of elements but lazy in the construction of
+-- indices, so they are not built until needed.
+--
 fromList :: (Indexable ixs a) => [a] -> IxSet ixs a
-fromList list = insertList list empty
+fromList = fromSet . Set.fromList
 
 -- | Returns the number of unique items in the 'IxSet'.
 size :: IxSet ixs a -> Int
 size = Set.size . toSet
 
 -- | Converts an 'IxSet' to its list of elements.
+--
+-- List will be sorted in ascending order by the @'Ord' a@ instance.
+--
 toList :: IxSet ixs a -> [a]
 toList = Set.toList . toSet
 
@@ -752,13 +808,13 @@ toDescList _ ixset = concatMap snd (groupDescBy ixset :: [(ix, [a])])
 
 -- | If the 'IxSet' is a singleton it will return the one item stored in it.
 -- If 'IxSet' is empty or has many elements this function returns 'Nothing'.
-getOne :: Ord a => IxSet ixs a -> Maybe a
+getOne :: IxSet ixs a -> Maybe a
 getOne ixset = case toList ixset of
                    [x] -> Just x
                    _   -> Nothing
 
 -- | Like 'getOne' with a user-provided default.
-getOneOr :: Ord a => a -> IxSet ixs a -> a
+getOneOr :: a -> IxSet ixs a -> a
 getOneOr def = fromMaybe def . getOne
 
 -- | Return 'True' if the 'IxSet' is empty, 'False' otherwise.
@@ -777,6 +833,7 @@ null (IxSet a _) = Set.null a
 (|||) :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 (|||) = union
 
+-- | An infix 'difference' operation.
 (\\\) :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 (\\\) = difference
 
@@ -784,18 +841,38 @@ infixr 5 &&&
 infixr 5 |||
 
 -- | Takes the union of the two 'IxSet's.
+--
+-- This will update the indices lazily.
+--
 union :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 union (IxSet a1 x1) (IxSet a2 x2) =
-  IxSet (Set.union a1 a2)
-    (zipWithIxList' (\ (Ix a f) (Ix b _) -> Ix (Ix.union a b) f) x1 x2)
--- TODO: function is taken from the first
+  IxSet (Set.union a1 a2) (zipWithIxList Ix.union x1 x2)
 
 -- | Takes the intersection of the two 'IxSet's.
+--
+-- This will update the indices lazily.
+--
 intersection :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 intersection (IxSet a1 x1) (IxSet a2 x2) =
-  IxSet (Set.intersection a1 a2)
-    (zipWithIxList' (\ (Ix a f) (Ix b _) -> Ix (Ix.intersection a b) f) x1 x2)
--- TODO: function is taken from the first
+  IxSet (Set.intersection a1 a2) (zipWithIxList Ix.intersection x1 x2)
+
+-- | Remove every item in the second 'IxSet' from the first 'IxSet'.
+--
+-- This will update the indices lazily.
+--
+difference :: forall ixs a. Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
+difference (IxSet elements ixs) (IxSet deletes deleteIxs) =
+  IxSet (elements `Set.difference` deletes) (zipWithIxList Ix.difference ixs deleteIxs)
+
+-- | Limit elements of an `IxSet` to those matching a predicate.
+--
+-- This will update the indices lazily.
+--
+filter :: Indexable ixs a => (a -> Bool) -> IxSet ixs a -> IxSet ixs a
+filter p (IxSet elements indexes) =
+    IxSet good_elements (mapIxList (Ix.deleteMany bad_elements) indexes)
+  where
+    (good_elements, bad_elements) = Set.partition p elements
 
 --------------------------------------------------------------------------
 -- Query operations
@@ -856,42 +933,79 @@ ix @+ list = List.foldl' union empty $ map (ix @=) list
      => IxSet ixs a -> [ix] -> IxSet ixs a
 ix @* list = List.foldl' intersection ix $ map (ix @=) list
 
--- | Returns the subset with an index equal to the provided key.  The
--- set must be indexed over key type.
+-- | Returns the subset with an index equal to the provided key.
 getEQ :: (Indexable ixs a, IsIndexOf ix ixs)
       => ix -> IxSet ixs a -> IxSet ixs a
 getEQ = getOrd EQ
 
--- | Returns the subset with an index less than the provided key.  The
--- set must be indexed over key type.
+-- | Returns the subset with an index less than the provided key.
 getLT :: (Indexable ixs a, IsIndexOf ix ixs)
       => ix -> IxSet ixs a -> IxSet ixs a
 getLT = getOrd LT
 
 -- | Returns the subset with an index greater than the provided key.
--- The set must be indexed over key type.
 getGT :: (Indexable ixs a, IsIndexOf ix ixs)
       => ix -> IxSet ixs a -> IxSet ixs a
 getGT = getOrd GT
 
 -- | Returns the subset with an index less than or equal to the
--- provided key.  The set must be indexed over key type.
+-- provided key.
 getLTE :: (Indexable ixs a, IsIndexOf ix ixs)
        => ix -> IxSet ixs a -> IxSet ixs a
 getLTE = getOrd2 True True False
 
 -- | Returns the subset with an index greater than or equal to the
--- provided key.  The set must be indexed over key type.
+-- provided key.
 getGTE :: (Indexable ixs a, IsIndexOf ix ixs)
        => ix -> IxSet ixs a -> IxSet ixs a
 getGTE = getOrd2 False True True
 
 -- | Returns the subset with an index within the interval provided.
 -- The bottom of the interval is closed and the top is open,
--- i. e. [k1;k2).  The set must be indexed over key type.
+-- i.e. [k1,k2).
 getRange :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> ix -> IxSet ixs a -> IxSet ixs a
 getRange k1 k2 ixset = getGTE k1 (getLT k2 ixset)
+
+-- | A function for building up selectors on 'IxSet's.  Used in the
+-- various get* functions.
+getOrd :: (Indexable ixs a, IsIndexOf ix ixs)
+       => Ordering -> ix -> IxSet ixs a -> IxSet ixs a
+getOrd LT = getOrd2 True False False
+getOrd EQ = getOrd2 False True False
+getOrd GT = getOrd2 False False True
+
+-- | A function for building up selectors on 'IxSet's.  Used in the
+-- various get* functions.
+getOrd2 :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
+        => Bool -> Bool -> Bool -> ix -> IxSet ixs a -> IxSet ixs a
+getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)
+  where
+    f :: Ix ix a -> IxSet ixs a
+    f (Ix index _) = fromMapOfSets result
+      where
+        lt', gt' :: Map ix (Set a)
+        eq' :: Maybe (Set a)
+        (lt', eq', gt') = Map.splitLookup v index
+
+        lt, gt :: Map ix (Set a)
+        lt = if inclt then lt' else Map.empty
+        gt = if incgt then gt' else Map.empty
+        eq :: Maybe (Set a)
+        eq = if inceq then eq' else Nothing
+
+        ltgt :: Map ix (Set a)
+        ltgt = Map.unionWith Set.union lt gt
+
+        result :: Map ix (Set a)
+        result = case eq of
+          Just eqset -> Map.insertWith Set.union v eqset ltgt
+          Nothing    -> ltgt
+
+
+--------------------------------------------------------------------------
+-- Grouping operations
+--------------------------------------------------------------------------
 
 -- | Returns lists of elements paired with the indices determined by
 -- type inference.
@@ -934,46 +1048,26 @@ groupDescBy (IxSet _ indexes) = f (access indexes)
     f :: Ix ix a -> [(ix, [a])]
     f (Ix index _) = map (second Set.toAscList) (Map.toDescList index)
 
--- | A function for building up selectors on 'IxSet's.  Used in the
--- various get* functions.  The set must be indexed over key type.
 
-getOrd :: (Indexable ixs a, IsIndexOf ix ixs)
-       => Ordering -> ix -> IxSet ixs a -> IxSet ixs a
-getOrd LT = getOrd2 True False False
-getOrd EQ = getOrd2 False True False
-getOrd GT = getOrd2 False False True
+--------------------------------------------------------------------------
+-- Debugging and optimization
+--------------------------------------------------------------------------
 
--- | A function for building up selectors on 'IxSet's.  Used in the
--- various get* functions.  The set must be indexed over key type.
-getOrd2 :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
-        => Bool -> Bool -> Bool -> ix -> IxSet ixs a -> IxSet ixs a
-getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)
-  where
-    f :: Ix ix a -> IxSet ixs a
-    f (Ix index _) = fromMapOfSets result
-      where
-        lt', gt' :: Map ix (Set a)
-        eq' :: Maybe (Set a)
-        (lt', eq', gt') = Map.splitLookup v index
+-- | Evaluate the indices contained within an 'IxSet'.  Call this after a lazy
+-- operation such as 'fromSet', 'fromList' or a query, to perform the work of
+-- building the indices immediately rather than deferring it until they are
+-- used.  The underlying 'Set' does not need to be forced as it is stored
+-- spine-strictly.
+--
+forceIndices :: IxSet ixs a -> IxSet ixs a
+forceIndices (IxSet set ixlist) = IxSet set $! forceIxList ixlist
 
-        lt, gt :: Map ix (Set a)
-        lt = if inclt then lt' else Map.empty
-        gt = if incgt then gt' else Map.empty
-        eq :: Maybe (Set a)
-        eq = if inceq then eq' else Nothing
+forceIxList :: forall ixs a . IxList ixs a -> IxList ixs a
+forceIxList Nil          = Nil
+forceIxList (ix ::: ixs) = ix !::: forceIxList ixs
 
-        ltgt :: Map ix (Set a)
-        ltgt = Map.unionWith Set.union lt gt
-
-        result :: Map ix (Set a)
-        result = case eq of
-          Just eqset -> Map.insertWith Set.union v eqset ltgt
-          Nothing    -> ltgt
 
 -- Optimization todo:
---
---   * can we avoid rebuilding the collection every time we query?
---     does laziness take care of everything?
 --
 --   * nicer operators?
 --
@@ -991,10 +1085,13 @@ getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)
 --
 -- This can aid you in debugging and optimisation.
 --
-stats :: Indexable ixs a => IxSet ixs a -> (Int,Int,Int,Int)
+-- Evaluating the third or fourth components of the quadruple will
+-- cause the indices to be forced (cf. 'forceIndices').
+--
+stats :: IxSet ixs a -> (Int,Int,Int,Int)
 stats (IxSet a ixs) = (no_elements,no_indexes,no_keys,no_values)
     where
       no_elements = Set.size a
       no_indexes  = lengthIxList ixs
-      no_keys     = sum (ixListToList (\ (Ix m _) -> Map.size m) ixs)
-      no_values   = sum (ixListToList (\ (Ix m _) -> sum [Set.size s | s <- Map.elems m]) ixs)
+      no_keys     = foldlIxList' (\ n (Ix m _) -> n + Map.size m) 0 ixs
+      no_values   = foldlIxList' (\ n (Ix m _) -> Fold.foldl' (\ acc s -> acc + Set.size s) n m) 0 ixs

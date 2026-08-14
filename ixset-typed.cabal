@@ -1,5 +1,5 @@
 name:                ixset-typed
-version:             0.5.1.1
+version:             0.6
 synopsis:            Efficient relational queries on Haskell sets.
 description:
     This Haskell package provides a data structure of sets that are indexed
@@ -34,7 +34,7 @@ source-repository head
 
 library
   build-depends:     base             >= 4.11 && < 5,
-                     containers       >= 0.5 && < 1,
+                     containers       >= 0.5.9 && < 1,
                      deepseq          >= 1.3 && < 2,
                      safecopy         >= 0.8 && < 0.11,
                      syb              >= 0.4 && < 1,
@@ -45,15 +45,15 @@ library
                      Data.IxSet.Typed
                      Data.IxSet.Typed.Ix
 
-  ghc-options:       -Wall
+  ghc-options:       -Wall -Wredundant-constraints
 
   default-language:  Haskell2010
 
 test-suite test-ixset-typed
   type:              exitcode-stdio-1.0
   build-depends:     ixset-typed,
-                     base             >= 4.9 && < 5,
-                     containers       >= 0.5 && < 1,
+                     base,
+                     containers,
                      tasty,
                      tasty-hunit,
                      tasty-quickcheck,
@@ -70,9 +70,9 @@ test-suite test-ixset-typed
 benchmark bench-ixset-typed
   type:              exitcode-stdio-1.0
   build-depends:     ixset-typed,
-                     base             >= 4.9 && < 5,
-                     containers       >= 0.5 && < 1,
-                     deepseq          >= 1.3 && < 2,
+                     base,
+                     containers,
+                     deepseq,
                      tasty-bench      >= 0.3 && < 0.6
   hs-source-dirs:    bench
   main-is:           Main.hs
