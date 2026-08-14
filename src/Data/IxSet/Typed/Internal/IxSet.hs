@@ -311,7 +311,7 @@ deleteIx i ixset = maybe ixset (flip delete ixset) $
 -- @since 0.6
 --
 deleteIxMany :: forall ixs ix a . (Indexable ixs a, IsIndexOf ix ixs) => [ix] -> IxSet ixs a -> IxSet ixs a
-deleteIxMany ixs ixset = deleteMany ixset (ixset @+ ixs)
+deleteIxMany is ixset = deleteSet (lookupIxMany is ixset) ixset
 
 
 --------------------------------------------------------------------------
@@ -617,9 +617,9 @@ lookupIx i = Map.findWithDefault Set.empty i . getIxMap
 -- @since 0.6
 --
 lookupIxMany :: (Indexable ixs a, IsIndexOf ix ixs, Foldable f) => f ix -> IxSet ixs a -> Set.Set a
-lookupIxMany is ixs = foldl' (\ s i -> maybe s (Set.union s) (Map.lookup i m)) Set.empty is
+lookupIxMany is ixset = Fold.foldl' (\ s i -> maybe s (Set.union s) (Map.lookup i m)) Set.empty is
   where
-    m = getIxMap ixs
+    m = getIxMap ixset
 
 
 --------------------------------------------------------------------------

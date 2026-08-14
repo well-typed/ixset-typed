@@ -291,6 +291,65 @@ projectIndices =
         project (Proxy :: Proxy '[Int]) (S "abc") @=? [3 :: Int]
     ]
 
+lookupIxs :: TestTree
+lookupIxs =
+  testGroup "lookupIx / lookupIxMany" $
+    [ testCase "finds both length 3 elements" $
+        Set.fromList [S "abc", S "def"] @=? lookupIx (3 :: Int) funSet
+    , testCase "missing index gives empty set" $
+        Set.empty @=? lookupIx (1 :: Int) funSet
+    , testCase "unions the matching elements" $
+        Set.fromList [S "", S "abc", S "def"]
+          @=? lookupIxMany [0, 3 :: Int] funSet
+    , testCase "no indices gives empty set" $
+        Set.empty @=? lookupIxMany ([] :: [Int]) funSet
+    , testCase "missing indices are ignored" $
+        Set.fromList [S "abcde"] @=? lookupIxMany [1, 5 :: Int] funSet
+    ]
+
+deleteIxs :: TestTree
+deleteIxs =
+  testGroup "deleteIxMany" $
+    [ testCase "deletes both length 3 elements" $
+        IxSet.fromList [S "", S "abcde"] @=? deleteIxMany [3 :: Int] funSet
+    , testCase "no indices leaves the set alone" $
+        funSet @=? deleteIxMany ([] :: [Int]) funSet
+    , testCase "missing indices leave the set alone" $
+        funSet @=? deleteIxMany [1, 2 :: Int] funSet
+    , testCase "deleting every index empties the set" $
+        IxSet.empty @=? deleteIxMany [0, 3, 5 :: Int] funSet
+    ]
+
+prop_lookupIx :: Foos -> Int -> Bool
+prop_lookupIx ixset intidx =
+    lookupIx intidx ixset == toSet (ixset @= intidx)
+
+prop_lookupIxMany :: Foos -> [Int] -> Bool
+prop_lookupIxMany ixset idxs =
+    lookupIxMany idxs ixset == toSet (ixset @+ idxs)
+
+prop_deleteIxMany :: Foos -> [Int] -> Bool
+prop_deleteIxMany ixset idxs =
+    toSet d == toSet ixset `Set.difference` toSet (ixset @+ idxs)
+  where
+    d = deleteIxMany idxs ixset
+
+-- | The indices are only used as a source of keys that occur in the set, so
+-- that deletion really does have something to do.
+prop_deleteIxManyIndices :: Foos -> Bool
+prop_deleteIxManyIndices ixset =
+    validIndices (deleteIxMany idxs ixset)
+  where
+    idxs = [ i | Foo _ i <- toList ixset, even i ]
+
+lookupDeleteOps :: TestTree
+lookupDeleteOps = testGroup "lookup / delete by index" $
+  [ testProperty "lookupIx agrees with (@=)"       $ prop_lookupIx
+  , testProperty "lookupIxMany agrees with (@+)"   $ prop_lookupIxMany
+  , testProperty "deleteIxMany agrees with (@+)"   $ prop_deleteIxMany
+  , testProperty "indices after deleteIxMany"      $ prop_deleteIxManyIndices
+  ]
+
 bigSet :: Int -> MultiIndexed
 bigSet n = fromList $
     [ MultiIndex string int integer maybe_int either_bool_char |
@@ -334,10 +393,13 @@ allTests =
       , testTriple
       , funIndexes
       , projectIndices
+      , lookupIxs
+      , deleteIxs
       ]
     , testGroup "properties" $
       [ sizeEqToListLength
       , setOps
+      , lookupDeleteOps
       , opers
       , sureelem
       , ranges
