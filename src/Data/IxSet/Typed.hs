@@ -113,14 +113,17 @@ needed. Thus:
  * Construction operations ('fromSet' and 'fromList') will evaluate the elements
    to build the underlying set, but will build the indices lazily. Since the
    only data the index construction retains are elements of the set, this cannot
-   cause a significant space leak.
+   cause a significant space leak.  However, if you wish to perform the index
+   construction up front rather than deferring it until the indices are forced,
+   use 'forceIndices'.
 
- * Query operations (including union and intersection) are lazy in the indices,
+ * Query operations (including 'union' and 'intersection') are lazy in the indices,
    so querying a number of times and subsequently selecting the result will not
-   unnecessarily rebuild all indices. This could result in a leak if you
-   repeatedly query without looking at the results.
+   unnecessarily rebuild all indices. This could result in a space leak if you
+   repeatedly query and then retain the resulting 'IxSet' without looking at the
+   results.
 
- * Operations that modify 'IxSet' (e.g. inserts and deletes) are spine-strict in
+ * Operations that modify 'IxSet' (e.g. 'insert' and 'delete') are spine-strict in
    the indices as well. This avoids retaining old copies of the 'IxSet' as it is
    modified.
 
@@ -212,6 +215,7 @@ module Data.IxSet.Typed
      flattenWithCalcs,
 
      -- * Debugging and optimization
+     forceIndices,
      stats
 )
 where
@@ -1035,6 +1039,21 @@ getOrd2 inclt inceq incgt v (IxSet _ ixs) = f (access ixs)
         result = case eq of
           Just eqset -> Map.insertWith Set.union v eqset ltgt
           Nothing    -> ltgt
+
+
+-- | Evaluate the indices contained within an 'IxSet'.  Call this after a lazy
+-- operation such as 'fromSet', 'fromList' or a query, to perform the work of
+-- building the indices immediately rather than deferring it until they are
+-- used.  The underyling 'Set' does not need to be forced as it is stored
+-- spine-strictly.
+--
+forceIndices :: IxSet ix a -> IxSet ix a
+forceIndices (IxSet set ixlist) = IxSet set $! forceIxList ixlist
+
+forceIxList :: forall ixs a . IxList ixs a -> IxList ixs a
+forceIxList Nil          = Nil
+forceIxList (ix ::: ixs) = ix !::: forceIxList ixs
+
 
 -- Optimization todo:
 --
