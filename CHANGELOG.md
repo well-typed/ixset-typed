@@ -1,7 +1,29 @@
 0.6 (Unreleased)
 ================
 
-* Add `insertSet`, `insertMany`, `deleteSet`, `deleteMany`, `filter`, `difference` and `(\\\)` operations.
+* Add bulk modification operations: `insertSet`, `insertMany`, `deleteSet`, `deleteMany`.
+
+* Add set operations: `filter`, `difference`, `(\\\)`.
+
+* Significant performance-related changes, including changes to
+  strictness/laziness and removal of intermediate datastructures, which should
+  generally improve performance, but may have performance downsides or lead to
+  space leaks in some cases:
+
+  - An `IxSet` is no longer always strict in the head of the `IxList`.  This
+    means queries are more lazy, and avoid rebuilding the first index if it is
+    not needed.  Updates continue to be strict, to prevent thunk leaks as the
+    `IxSet` is updated.
+
+  - `fromSet` and `fromList` now compute the indices lazily (but remain
+    spine-strict in the elements).
+
+  - `union` and `intersection` now compute the indices lazily (until the index
+    is accessed, then it is computed in full).  Previously they would compute
+    them partially (using lazy `Map` operations).
+
+* Add `forceIndices`, which can be used to ensure the indices are evaluated
+  after using operations that are now lazy in the index construction.
 
 * Various documentation and performance improvements.
 

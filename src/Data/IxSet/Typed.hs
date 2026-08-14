@@ -112,20 +112,21 @@ needed. Thus:
 
  * Construction operations ('fromSet' and 'fromList') will evaluate the elements
    to build the underlying set, but will build the indices lazily. Since the
-   only data the index construction retains are elements of the set, this cannot
+   only data the index construction retains are elements of the set, this should not
    cause a significant space leak.  However, if you wish to perform the index
    construction up front rather than deferring it until the indices are forced,
    use 'forceIndices'.
 
- * Query operations (including 'union' and 'intersection') are lazy in the indices,
-   so querying a number of times and subsequently selecting the result will not
-   unnecessarily rebuild all indices. This could result in a space leak if you
-   repeatedly query and then retain the resulting 'IxSet' without looking at the
-   results.
+ * Index lookups (such as 'getEQ') and other query operations (including 'filter',
+   'union' and 'intersection') are lazy in the indices, so querying a number of
+   times and subsequently selecting the result will not unnecessarily rebuild all
+   indices. This could result in a space leak if you repeatedly query and then
+   retain the resulting 'IxSet' without looking at the results.  Again, you can
+   use 'forceIndices' to avoid this.
 
- * Operations that modify 'IxSet' (e.g. 'insert' and 'delete') are spine-strict in
-   the indices as well. This avoids retaining old copies of the 'IxSet' as it is
-   modified.
+ * Operations that modify 'IxSet' (e.g. 'insert', 'delete', 'updateIx') are
+   spine-strict in the indices as well. This avoids retaining old copies of the
+   'IxSet' as it is modified.  There are currently no lazy modification operations.
 
 -}
 
@@ -158,7 +159,6 @@ module Data.IxSet.Typed
      delete,
      deleteSet,
      deleteMany,
-     filter,
      updateIx,
      deleteIx,
 
@@ -186,6 +186,7 @@ module Data.IxSet.Typed
      union,
      intersection,
      difference,
+     filter,
 
      -- * Indexing
      (@=),
@@ -205,6 +206,8 @@ module Data.IxSet.Typed
      getLTE,
      getGTE,
      getRange,
+
+     -- * Grouping
      groupBy,
      groupAscBy,
      groupDescBy,
@@ -705,14 +708,6 @@ insert = change Set.insert Ix.insert
 delete :: Indexable ixs a => a -> IxSet ixs a -> IxSet ixs a
 delete = change Set.delete Ix.delete
 
--- | Remove every item in the second 'IxSet' from the first 'IxSet'.
---
--- This will update the indices strictly.
---
-difference :: forall ixs a. Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
-difference (IxSet elements ixs) (IxSet deletes deleteIxs) =
-  IxSet (elements `Set.difference` deletes) (zipWithIxList Ix.difference ixs deleteIxs)
-
 -- | Remove every element of a 'Set' from an 'IxSet'.
 --
 -- This will update the indices strictly.
@@ -726,16 +721,6 @@ deleteSet deletes = changeAll (`Set.difference` deletes) (Ix.deleteMany deletes)
 --
 deleteMany :: (Indexable ixs a, Foldable t) => t a -> IxSet ixs a -> IxSet ixs a
 deleteMany deletes = changeAll (\ s -> Fold.foldl' (flip Set.delete) s deletes) (Ix.deleteMany deletes)
-
--- | Limit elements of an `IxSet` to those matching a predicate.
---
--- This will update the indices strictly.
---
-filter :: Indexable ixs a => (a -> Bool) -> IxSet ixs a -> IxSet ixs a
-filter p (IxSet elements indexes) =
-    IxSet good_elements $! mapIxList' (Ix.deleteMany bad_elements) indexes
-  where
-    (good_elements, bad_elements) = Set.partition p elements
 
 -- | Replace the item with the given index of type 'ix'. Only works if there is
 -- at most one item with that index in the 'IxSet'.
@@ -870,6 +855,23 @@ intersection :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 intersection (IxSet a1 x1) (IxSet a2 x2) =
   IxSet (Set.intersection a1 a2) (zipWithIxList Ix.intersection x1 x2)
 
+-- | Remove every item in the second 'IxSet' from the first 'IxSet'.
+--
+-- This will update the indices lazily.
+--
+difference :: forall ixs a. Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
+difference (IxSet elements ixs) (IxSet deletes deleteIxs) =
+  IxSet (elements `Set.difference` deletes) (zipWithIxList Ix.difference ixs deleteIxs)
+
+-- | Limit elements of an `IxSet` to those matching a predicate.
+--
+-- This will update the indices lazily.
+--
+filter :: Indexable ixs a => (a -> Bool) -> IxSet ixs a -> IxSet ixs a
+filter p (IxSet elements indexes) =
+    IxSet good_elements (mapIxList (Ix.deleteMany bad_elements) indexes)
+  where
+    (good_elements, bad_elements) = Set.partition p elements
 
 --------------------------------------------------------------------------
 -- Query operations
@@ -1056,9 +1058,6 @@ forceIxList (ix ::: ixs) = ix !::: forceIxList ixs
 
 
 -- Optimization todo:
---
---   * can we avoid rebuilding the collection every time we query?
---     does laziness take care of everything?
 --
 --   * nicer operators?
 --
