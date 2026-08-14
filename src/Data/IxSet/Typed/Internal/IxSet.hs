@@ -310,7 +310,7 @@ deleteIx i ixset = maybe ixset (flip delete ixset) $
 --
 -- @since 0.6
 --
-deleteIxMany :: forall ixs ix a . (Indexable ixs a, IsIndexOf ix ixs) => [ix] -> IxSet ixs a -> IxSet ixs a
+deleteIxMany :: forall ixs ix a f . (Indexable ixs a, IsIndexOf ix ixs, Foldable f) => f ix -> IxSet ixs a -> IxSet ixs a
 deleteIxMany is ixset = deleteSet (lookupIxMany is ixset) ixset
 
 
@@ -490,14 +490,14 @@ ix @><= (v1,v2) = getLTE v2 $ getGT v1 ix
 ix @>=<= (v1,v2) = getLTE v2 $ getGTE v1 ix
 
 -- | Creates the subset that has an index in the provided list.
-(@+) :: (Indexable ixs a, IsIndexOf ix ixs)
-     => IxSet ixs a -> [ix] -> IxSet ixs a
-ix @+ list = List.foldl' union empty $ map (ix @=) list
+(@+) :: (Indexable ixs a, IsIndexOf ix ixs, Foldable f)
+     => IxSet ixs a -> f ix -> IxSet ixs a
+ix @+ list = Fold.foldl' (\ s v -> s `union` (ix @= v)) empty list
 
 -- | Creates the subset that matches all the provided indices.
-(@*) :: (Indexable ixs a, IsIndexOf ix ixs)
-     => IxSet ixs a -> [ix] -> IxSet ixs a
-ix @* list = List.foldl' intersection ix $ map (ix @=) list
+(@*) :: (Indexable ixs a, IsIndexOf ix ixs, Foldable f)
+     => IxSet ixs a -> f ix -> IxSet ixs a
+ix @* list = Fold.foldl' (\ s v -> s `intersection` (ix @= v)) ix list
 
 -- | Returns the subset with an index equal to the provided key.
 getEQ :: (Indexable ixs a, IsIndexOf ix ixs)

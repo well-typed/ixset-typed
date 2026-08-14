@@ -33,6 +33,8 @@
 * Add `forceIndices`, which can be used to ensure the indices are evaluated
   after using operations that are now lazy in the index construction.
 
+* Generalise `@+` and `@*` so they work on any `Foldable` structure, not just lists.
+
 * Various documentation and performance improvements.
 
 * Rename `Data.IxSet.Typed.Ix` to `Data.IxSet.Typed.Internal.Ix`, change its API
