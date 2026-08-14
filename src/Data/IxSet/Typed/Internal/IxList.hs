@@ -30,6 +30,8 @@ module Data.IxSet.Typed.Internal.IxList
     , mapIxList'
     , zipWithIxList
     , forceIxList
+    , ixList
+    , MkIxList(..)
     ) where
 
 import Control.DeepSeq (NFData(..))
@@ -166,3 +168,42 @@ zipWithIxList f (x ::: xs) (y ::: ys) = f x y ::: zipWithIxList f xs ys
 forceIxList :: forall ixs a . IxList ixs a -> IxList ixs a
 forceIxList Nil          = Nil
 forceIxList (ix ::: ixs) = ix !::: forceIxList ixs
+
+
+--------------------------------------------------------------------------
+-- 'IxList' construction
+--------------------------------------------------------------------------
+
+-- | Create an (empty) 'IxList' from a number of indices. Useful in the 'Indexable'
+-- 'indices' method. Use 'ixFun' and 'ixGen' for the individual indices.
+--
+-- Note that this function takes a variable number of arguments.
+-- Here are some example types at which the function can be used:
+--
+-- > ixList :: Ix ix1 a -> IxList '[ix1] a
+-- > ixList :: Ix ix1 a -> Ix ix2 a -> IxList '[ix1, ix2] a
+-- > ixList :: Ix ix1 a -> Ix ix2 a -> Ix ix3 a -> IxList '[ix1, ix2, ix3] a
+-- > ixList :: ...
+--
+-- Concrete example use:
+--
+-- > instance Indexable '[..., Index1Type, Index2Type] Type where
+-- >     indices = ixList
+-- >                 ...
+-- >                 (ixFun getIndex1)
+-- >                 (ixGen (Proxy :: Proxy Index2Type))
+--
+ixList :: MkIxList ixs ixs a r => r
+ixList = ixList' id
+
+-- | Class that allows a variable number of arguments to be passed to the
+-- 'ixSet' and 'mkEmpty' functions. See the documentation of these functions
+-- for more information.
+class MkIxList ixs ixs' a r | r -> a ixs ixs' where
+  ixList' :: (IxList ixs a -> IxList ixs' a) -> r
+
+instance MkIxList '[] ixs a (IxList ixs a) where
+  ixList' acc = acc Nil
+
+instance MkIxList ixs ixs' a r => MkIxList (ix ': ixs) ixs' a (Ix ix a -> r) where
+  ixList' acc ix = ixList' (\ x -> acc (ix ::: x))

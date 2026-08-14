@@ -45,6 +45,7 @@ library
                      Data.IxSet.Typed
                      Data.IxSet.Typed.Internal.Ix
                      Data.IxSet.Typed.Internal.IxList
+                     Data.IxSet.Typed.Internal.IxSet
 
   ghc-options:       -Wall -Wredundant-constraints
 
