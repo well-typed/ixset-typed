@@ -90,7 +90,7 @@ type family All c xs :: Constraint where
 --
 -- In order to use an 'IxSet' on a particular type, you have to
 -- make it an instance of 'Indexable' yourself. There are no
--- predefined instances of 'IxSet'.
+-- predefined instances of 'Indexable'.
 --
 class (All Ord ixs, Ord a) => Indexable ixs a where
 
