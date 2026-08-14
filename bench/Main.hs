@@ -266,7 +266,7 @@ setOperations fx forcer =
   , ("difference",              forcer (IxSet.difference ixs) ixs')
   , ("(|||)",                   forcer (ixs |||) ixs')
   , ("(&&&)",                   forcer (ixs &&&) ixs')
-  , ("(\\\\\\)",                   forcer (ixs \\\) ixs')
+  , ("(\\\\\\)",                forcer (ixs \\\) ixs')
   , ("Set.union (ref)",         forcer (Set.union (fxSet fx)) (IxSet.toSet ixs'))
   , ("Set.intersection (ref)",  forcer (Set.intersection (fxSet fx)) (IxSet.toSet ixs'))
   , ("Set.difference (ref)",    forcer (Set.difference (fxSet fx)) (IxSet.toSet ixs'))

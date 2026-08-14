@@ -115,13 +115,14 @@ needed. Thus:
    only data the index construction retains are elements of the set, this cannot
    cause a significant space leak.
 
- * Query operations are lazy in the indices, so querying a number of times and
-   subsequently selecting the result will not unnecessarily rebuild all indices.
-   This could result in a leak if you repeatedly query without looking at the
-   results.
+ * Query operations (including union and intersection) are lazy in the indices,
+   so querying a number of times and subsequently selecting the result will not
+   unnecessarily rebuild all indices. This could result in a leak if you
+   repeatedly query without looking at the results.
 
- * Operations that modify 'IxSet' are spine-strict in the indices as well. This
-   avoids retaining old copies of the 'IxSet' as it is modified.
+ * Operations that modify 'IxSet' (e.g. inserts and deletes) are spine-strict in
+   the indices as well. This avoids retaining old copies of the 'IxSet' as it is
+   modified.
 
 -}
 
@@ -244,7 +245,7 @@ import Language.Haskell.TH      as TH hiding (Type)
 -- type 'a' is the type of elements in the indexed set.
 --
 data IxSet (ixs :: [Type]) (a :: Type) where
-  IxSet :: !(Set a) -> !(IxList ixs a) -> IxSet ixs a
+  IxSet :: !(Set a) -> IxList ixs a -> IxSet ixs a
 
 data IxList (ixs :: [Type]) (a :: Type) where
   Nil   :: IxList '[] a
@@ -357,13 +358,14 @@ mapIxList' :: All Ord ixs
 mapIxList' _ Nil        = Nil
 mapIxList' f (x ::: xs) = f x !::: mapIxList' f xs
 
--- | Zip two index lists of compatible type (spine-strict).
-zipWithIxList' :: All Ord ixs
-               => (forall ix. Ord ix => Ix ix a -> Ix ix a -> Ix ix a)
-                    -- ^ how to combine two corresponding indices
-               -> IxList ixs a -> IxList ixs a -> IxList ixs a
-zipWithIxList' _ Nil        Nil        = Nil
-zipWithIxList' f (x ::: xs) (y ::: ys) = f x y !::: zipWithIxList' f xs ys
+-- | Zip two index lists of compatible type (lazy).
+zipWithIxList :: All Ord ixs
+              => (forall ix. Ord ix => Ix ix a -> Ix ix a -> Ix ix a)
+                   -- ^ how to combine two corresponding indices
+              -> IxList ixs a -> IxList ixs a -> IxList ixs a
+zipWithIxList _ Nil        Nil        = Nil
+zipWithIxList f (x ::: xs) (y ::: ys) = f x y ::: zipWithIxList f xs ys
+
 
 --------------------------------------------------------------------------
 -- Various instances for 'IxSet'
@@ -624,7 +626,7 @@ changeAll :: All Ord ixs
           => (Set a -> Set a)
           -> (forall ix. Ord ix => Ix ix a -> Ix ix a)
           -> IxSet ixs a -> IxSet ixs a
-changeAll f g (IxSet set indexes) = IxSet (f set) (mapIxList' g indexes)
+changeAll f g (IxSet set indexes) = IxSet (f set) $! mapIxList' g indexes
 
 -- | Insert a list of elements into an 'IxSet'.  (See also 'insertMany'.)
 --
@@ -672,13 +674,10 @@ fromMapOfSets partialindex =
     a = Set.unions partialindex
 
     -- Update function for the index corresponding to partialindex.
+    -- Any key already in the partial index is there with its full
+    -- set of elements, so only the other keys need adding.
     updateh :: Ix ix a -> Ix ix a
-    updateh (Ix _ f) = Ix ix f
-      where
-        ix :: Map ix (Set a)
-        -- Any key already in the partial index is there with its full
-        -- set of elements, so only the other keys need adding.
-        ix = Ix.insertManyWith (\ k -> Map.notMember k partialindex) a f partialindex
+    updateh (Ix _ f) = Ix.insertManyWith (\ k -> Map.notMember k partialindex) a f partialindex
 
     -- Update function for all other indices.
     updatet :: forall ix'. Ord ix' => Ix ix' a -> Ix ix' a
@@ -708,10 +707,7 @@ delete = change Set.delete Ix.delete
 --
 difference :: forall ixs a. Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 difference (IxSet elements ixs) (IxSet deletes deleteIxs) =
-  IxSet (elements `Set.difference` deletes) $
-    zipWithIxList' diffIx ixs deleteIxs
-  where
-  diffIx (Ix ix ixer) (Ix delIx _) = Ix (Ix.difference ix delIx) ixer
+  IxSet (elements `Set.difference` deletes) (zipWithIxList Ix.difference ixs deleteIxs)
 
 -- | Remove every element of a 'Set' from an 'IxSet'.
 --
@@ -733,7 +729,7 @@ deleteMany deletes = changeAll (\ s -> Fold.foldl' (flip Set.delete) s deletes) 
 --
 filter :: Indexable ixs a => (a -> Bool) -> IxSet ixs a -> IxSet ixs a
 filter p (IxSet elements indexes) =
-    IxSet good_elements (mapIxList' (Ix.deleteMany bad_elements) indexes)
+    IxSet good_elements $! mapIxList' (Ix.deleteMany bad_elements) indexes
   where
     (good_elements, bad_elements) = Set.partition p elements
 
@@ -856,23 +852,20 @@ infixr 5 |||
 
 -- | Takes the union of the two 'IxSet's.
 --
--- This will update the indices strictly.
+-- This will update the indices lazily.
 --
 union :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 union (IxSet a1 x1) (IxSet a2 x2) =
-  IxSet (Set.union a1 a2)
-    (zipWithIxList' (\ (Ix a f) (Ix b _) -> Ix (Ix.union a b) f) x1 x2)
--- TODO: function is taken from the first
+  IxSet (Set.union a1 a2) (zipWithIxList Ix.union x1 x2)
 
 -- | Takes the intersection of the two 'IxSet's.
 --
--- This will update the indices strictly.
+-- This will update the indices lazily.
 --
 intersection :: Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 intersection (IxSet a1 x1) (IxSet a2 x2) =
-  IxSet (Set.intersection a1 a2)
-    (zipWithIxList' (\ (Ix a f) (Ix b _) -> Ix (Ix.intersection a b) f) x1 x2)
--- TODO: function is taken from the first
+  IxSet (Set.intersection a1 a2) (zipWithIxList Ix.intersection x1 x2)
+
 
 --------------------------------------------------------------------------
 -- Query operations
