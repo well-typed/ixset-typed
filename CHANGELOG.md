@@ -35,7 +35,9 @@
 
 * Various documentation and performance improvements.
 
-* Change some internal helper functions in `Data.IxSet.Typed.Ix`.
+* Rename `Data.IxSet.Typed.Ix` to `Data.IxSet.Typed.Internal.Ix`, change its API
+  and add other `.Internal` modules.  These modules should not normally be
+  needed and are subject to change.
 
 * Remove various redundant constraints.
 
