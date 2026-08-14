@@ -274,6 +274,7 @@ deleteSet deletes = changeAll (`Set.difference` deletes) (Ix.deleteMany deletes)
 --
 deleteMany :: (Indexable ixs a, Foldable t) => t a -> IxSet ixs a -> IxSet ixs a
 deleteMany deletes = changeAll (\ s -> Fold.foldl' (flip Set.delete) s deletes) (Ix.deleteMany deletes)
+{-# SPECIALISE deleteMany :: Indexable ixs a => [a] -> IxSet ixs a -> IxSet ixs a #-}
 
 -- | Replace the item with the given index of type 'ix'. Only works if there is
 -- at most one item with that index in the 'IxSet'.
@@ -312,6 +313,7 @@ deleteIx i ixset = maybe ixset (flip delete ixset) $
 --
 deleteIxMany :: forall ixs ix a f . (Indexable ixs a, IsIndexOf ix ixs, Foldable f) => f ix -> IxSet ixs a -> IxSet ixs a
 deleteIxMany is ixset = deleteSet (lookupIxMany is ixset) ixset
+{-# SPECIALISE deleteIxMany :: forall ixs ix a . (Indexable ixs a, IsIndexOf ix ixs) => [ix] -> IxSet ixs a -> IxSet ixs a #-}
 
 
 --------------------------------------------------------------------------
@@ -493,11 +495,13 @@ ix @>=<= (v1,v2) = getLTE v2 $ getGTE v1 ix
 (@+) :: (Indexable ixs a, IsIndexOf ix ixs, Foldable f)
      => IxSet ixs a -> f ix -> IxSet ixs a
 ix @+ list = Fold.foldl' (\ s v -> s `union` (ix @= v)) empty list
+{-# SPECIALISE (@+) :: (Indexable ixs a, IsIndexOf ix ixs) => IxSet ixs a -> [ix] -> IxSet ixs a #-}
 
 -- | Creates the subset that matches all the provided indices.
 (@*) :: (Indexable ixs a, IsIndexOf ix ixs, Foldable f)
      => IxSet ixs a -> f ix -> IxSet ixs a
 ix @* list = Fold.foldl' (\ s v -> s `intersection` (ix @= v)) ix list
+{-# SPECIALISE (@*) :: (Indexable ixs a, IsIndexOf ix ixs) => IxSet ixs a -> [ix] -> IxSet ixs a #-}
 
 -- | Returns the subset with an index equal to the provided key.
 getEQ :: (Indexable ixs a, IsIndexOf ix ixs)
@@ -620,6 +624,7 @@ lookupIxMany :: (Indexable ixs a, IsIndexOf ix ixs, Foldable f) => f ix -> IxSet
 lookupIxMany is ixset = Fold.foldl' (\ s i -> maybe s (Set.union s) (Map.lookup i m)) Set.empty is
   where
     m = getIxMap ixset
+{-# SPECIALISE lookupIxMany :: (Indexable ixs a, IsIndexOf ix ixs) => [ix] -> IxSet ixs a -> Set.Set a #-}
 
 
 --------------------------------------------------------------------------
