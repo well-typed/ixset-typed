@@ -6,7 +6,11 @@
 
 This module defines the 'Ix' type of indices.
 
-NB: this is internal to @Data.IxSet.Typed@ and is subject to change.
+= WARNING
+
+This module exposes internal implementation details of @ixset-typed@.  It allows
+invariants to be broken via direct access to datatype constructors, and is
+subject to change without warning in future releases.
 
 -}
 module Data.IxSet.Typed.Internal.Ix

@@ -1,21 +1,19 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskellQuotes #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE UndecidableSuperClasses #-}
 
 {- |
 
 This module defines the main 'IxSet' type.
 
-NB: this is internal to @Data.IxSet.Typed@ and is subject to change.
+= WARNING
+
+This module exposes internal implementation details of @ixset-typed@.  It allows
+invariants to be broken via direct access to datatype constructors, and is
+subject to change without warning in future releases.
 
 -}
 module Data.IxSet.Typed.Internal.IxSet
@@ -229,6 +227,8 @@ insertList = insertMany
 --
 -- This will update the indices strictly.
 --
+-- @since 0.6
+--
 insertSet :: forall ixs a. (Indexable ixs a)
            => Set a -> IxSet ixs a -> IxSet ixs a
 insertSet xs = changeAll (Set.union xs) (Ix.insertMany xs)
@@ -236,6 +236,8 @@ insertSet xs = changeAll (Set.union xs) (Ix.insertMany xs)
 -- | Insert a 'Foldable' collection of elements into an 'IxSet'.
 --
 -- This will update the indices strictly.
+--
+-- @since 0.6
 --
 insertMany :: forall ixs f a. (Indexable ixs a, Foldable f)
            => f a -> IxSet ixs a -> IxSet ixs a
@@ -305,6 +307,8 @@ deleteIx i ixset = maybe ixset (flip delete ixset) $
 -- works even if an index matches multiple values.
 --
 -- This will update the indices strictly.
+--
+-- @since 0.6
 --
 deleteIxMany :: forall ixs ix a . (Indexable ixs a, IsIndexOf ix ixs) => [ix] -> IxSet ixs a -> IxSet ixs a
 deleteIxMany ixs ixset = deleteMany ixset (ixset @+ ixs)
@@ -418,6 +422,8 @@ intersection (IxSet a1 x1) (IxSet a2 x2) =
 --
 -- This will update the indices lazily.
 --
+-- @since 0.6
+--
 difference :: forall ixs a. Indexable ixs a => IxSet ixs a -> IxSet ixs a -> IxSet ixs a
 difference (IxSet elements ixs) (IxSet deletes deleteIxs) =
   IxSet (elements `Set.difference` deletes) (zipWithIxList Ix.difference ixs deleteIxs)
@@ -425,6 +431,8 @@ difference (IxSet elements ixs) (IxSet deletes deleteIxs) =
 -- | Limit elements of an `IxSet` to those matching a predicate.
 --
 -- This will update the indices lazily.
+--
+-- @since 0.6
 --
 filter :: Indexable ixs a => (a -> Bool) -> IxSet ixs a -> IxSet ixs a
 filter p (IxSet elements indexes) =
@@ -598,11 +606,15 @@ fromMapOfSets partialindex =
 -- | Look up elements in the 'IxSet' that match the given index exactly,
 -- returning the results as a 'Set'.
 --
+-- @since 0.6
+--
 lookupIx :: IsIndexOf ix ixs => ix -> IxSet ixs a -> Set.Set a
 lookupIx i = Map.findWithDefault Set.empty i . getIxMap
 
 -- | Look up elements in the 'IxSet' that match at least one of the indices in
 -- the given 'Foldable' collection, returning the results as a 'Set'.
+--
+-- @since 0.6
 --
 lookupIxMany :: (Indexable ixs a, IsIndexOf ix ixs, Foldable f) => f ix -> IxSet ixs a -> Set.Set a
 lookupIxMany is ixs = foldl' (\ s i -> maybe s (Set.union s) (Map.lookup i m)) Set.empty is
@@ -658,6 +670,8 @@ groupDescBy = map (second Set.toAscList) . Map.toDescList . getIxMap
 -- building the indices immediately rather than deferring it until they are
 -- used.  The underlying 'Set' does not need to be forced as it is stored
 -- spine-strictly.
+--
+-- @since 0.6
 --
 forceIndices :: IxSet ixs a -> IxSet ixs a
 forceIndices (IxSet set ixlist) = IxSet set $! forceIxList ixlist

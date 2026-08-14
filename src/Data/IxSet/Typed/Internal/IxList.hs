@@ -15,7 +15,11 @@
 
 This module defines the 'IxList' type of lists of indices.
 
-NB: this is internal to @Data.IxSet.Typed@ and is subject to change.
+= WARNING
+
+This module exposes internal implementation details of @ixset-typed@.  It allows
+invariants to be broken via direct access to datatype constructors, and is
+subject to change without warning in future releases.
 
 -}
 module Data.IxSet.Typed.Internal.IxList
@@ -128,6 +132,9 @@ instance
   mapAt fh ft (x ::: xs) = ft x ::: mapAt fh ft xs
 
 -- | Project out the indices from a value of an 'Indexable' type.
+--
+-- @since 0.6
+--
 project :: forall proxy ixs ix a . (Indexable ixs a, IsIndexOf ix ixs) => proxy ixs -> a -> [ix]
 project _ = case access (indices :: IxList ixs a) :: Ix ix a of
               Ix _ f -> f
