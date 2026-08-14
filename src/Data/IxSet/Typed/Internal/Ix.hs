@@ -4,11 +4,12 @@
 
 {- |
 
-This module defines the 'Ix' type of indices. It should probably be considered
-private to @Data.IxSet.Typed@.
+This module defines the 'Ix' type of indices.
+
+NB: this is internal to @Data.IxSet.Typed@ and is subject to change.
 
 -}
-module Data.IxSet.Typed.Ix
+module Data.IxSet.Typed.Internal.Ix
     ( Ix(..)
     , IxMap
     , insert

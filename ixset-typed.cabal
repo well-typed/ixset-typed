@@ -43,7 +43,7 @@ library
   hs-source-dirs:    src
   exposed-modules:
                      Data.IxSet.Typed
-                     Data.IxSet.Typed.Ix
+                     Data.IxSet.Typed.Internal.Ix
 
   ghc-options:       -Wall -Wredundant-constraints
 

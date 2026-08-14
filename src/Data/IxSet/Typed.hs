@@ -231,8 +231,8 @@ import           Control.Arrow  (first, second)
 import           Control.DeepSeq (NFData(..))
 import qualified Data.Foldable  as Fold
 import           Data.Generics  (Data, gmapQ)
-import qualified Data.IxSet.Typed.Ix  as Ix
-import           Data.IxSet.Typed.Ix  (Ix(Ix))
+import qualified Data.IxSet.Typed.Internal.Ix  as Ix
+import           Data.IxSet.Typed.Internal.Ix  (Ix(Ix))
 import qualified Data.List      as List
 import           Data.Map       (Map)
 import qualified Data.Map       as Map
