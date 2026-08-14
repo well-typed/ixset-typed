@@ -127,15 +127,20 @@ module Data.IxSet.Typed
      -- * Set type
      IxSet(),
      IxList(),
+
+     -- ** Indexable types
      Indexable(..),
      IsIndexOf(),
      All,
+     project,
+
      -- ** Declaring indices
      Ix(),
      ixList,
      MkIxList(),
      ixFun,
      ixGen,
+
      -- ** TH derivation of indices
      noCalcs,
      inferIxSet,
@@ -216,8 +221,7 @@ module Data.IxSet.Typed
 
      -- * Debugging and optimization
      forceIndices,
-     stats,
-     project
+     stats
 )
 where
 
