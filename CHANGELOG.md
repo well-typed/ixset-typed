@@ -1,9 +1,15 @@
 0.6 (Unreleased)
 ================
 
-* Add bulk modification operations: `insertSet`, `insertMany`, `deleteSet`, `deleteMany`.
+* Add various new API functions:
 
-* Add set operations: `filter`, `difference`, `(\\\)`.
+  - Lookup: `lookupIx`, `lookupIxMany`
+
+  - Bulk modification: `insertSet`, `insertMany`, `deleteSet`, `deleteMany`, `deleteIxMany`
+
+  - Set operations: `filter`, `difference`, `(\\\)`
+
+  - Project out indices from values of an `Indexable` type: `project`
 
 * Significant performance-related changes, including changes to
   strictness/laziness and removal of intermediate datastructures, which should
@@ -27,9 +33,13 @@
 * Add `forceIndices`, which can be used to ensure the indices are evaluated
   after using operations that are now lazy in the index construction.
 
+* Generalise `@+` and `@*` so they work on any `Foldable` structure, not just lists.
+
 * Various documentation and performance improvements.
 
-* Change some internal helper functions in `Data.IxSet.Typed.Ix`.
+* Rename `Data.IxSet.Typed.Ix` to `Data.IxSet.Typed.Internal.Ix`, change its API
+  and add other `.Internal` modules.  These modules should not normally be
+  needed and are subject to change.
 
 * Remove various redundant constraints.
 
