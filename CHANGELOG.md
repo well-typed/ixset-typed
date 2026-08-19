@@ -3,7 +3,7 @@
 
 * Add various new API functions:
 
-  - Lookup: `lookupIx`, `lookupIxMany`
+  - Lookup: `lookupIx`, `lookupIxMany`, `lookupOne`
 
   - Bulk modification: `insertSet`, `insertMany`, `deleteSet`, `deleteMany`, `deleteIxMany`
 

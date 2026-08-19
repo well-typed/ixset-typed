@@ -84,6 +84,7 @@ module Data.IxSet.Typed.Internal.IxSet
      -- * Lookup
      lookupIx,
      lookupIxMany,
+     lookupOne,
 
      -- * Grouping
      getIxMap,
@@ -625,6 +626,17 @@ lookupIxMany is ixset = Fold.foldl' (\ s i -> maybe s (Set.union s) (Map.lookup 
   where
     m = getIxMap ixset
 {-# SPECIALISE lookupIxMany :: (Indexable ixs a, IsIndexOf ix ixs) => [ix] -> IxSet ixs a -> Set.Set a #-}
+
+-- | Look up the element in the 'IxSet' that matches the given index exactly.
+--
+-- This is designed for use with unique indices.  If there is one item with the
+-- index, it will be returned. If there are no matching items or many results,
+-- this function returns 'Nothing'.
+--
+-- @since 0.6
+--
+lookupOne :: (Indexable ixs a, IsIndexOf ix ixs) => ix -> IxSet ixs a -> Maybe a
+lookupOne i ixs = getOne (ixs @= i)
 
 
 --------------------------------------------------------------------------
