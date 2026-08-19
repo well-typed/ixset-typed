@@ -256,8 +256,8 @@ import           Prelude hiding (filter, null)
 ixFun :: (a -> [ix]) -> Ix ix a
 ixFun = Ix Map.empty
 
--- | Create a generic index. Provided example is used only as type source
--- so you may use a 'Proxy'. This uses flatten to traverse values using
+-- | Create a generic index. Provided argument is used only as type source
+-- so you may use a 'Proxy'. This uses 'flatten' to traverse values using
 -- their 'Data' instances.
 --
 -- > instance Indexable '[IndexType] Type where
