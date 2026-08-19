@@ -1,4 +1,4 @@
-0.6 (Unreleased)
+0.6 (2026-08-19)
 ================
 
 * BREAKING CHANGE to the semantics of interval selection operators (`getRange`,
