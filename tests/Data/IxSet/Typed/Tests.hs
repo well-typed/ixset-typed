@@ -141,10 +141,12 @@ testTriple =
 
 instance Arbitrary Foo where
   arbitrary = liftM2 Foo arbitrary arbitrary
+  shrink (Foo x y) = (Foo <$> shrink x <*> shrink y) ++ (Foo <$> shrink x <*> pure y) ++ (Foo x <$> shrink y)
 
 instance (Arbitrary a, Indexable (ix ': ixs) a)
            => Arbitrary (IxSet (ix ': ixs) a) where
   arbitrary = liftM fromList arbitrary
+  shrink = fmap fromList . shrink . toList
 
 prop_sizeEqToListLength :: Foos -> Bool
 prop_sizeEqToListLength ixset = size ixset == length (toList ixset)
