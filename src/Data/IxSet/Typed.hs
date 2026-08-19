@@ -208,6 +208,7 @@ module Data.IxSet.Typed
      -- * Lookup
      lookupIx,
      lookupIxMany,
+     lookupOne,
 
      -- * Grouping
      groupBy,
