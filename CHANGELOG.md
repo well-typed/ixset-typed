@@ -1,4 +1,4 @@
-0.6 (Unreleased)
+0.6 (2026-08-19)
 ================
 
 * BREAKING CHANGE to the semantics of interval selection operators (`getRange`,
@@ -54,6 +54,8 @@
 * Remove various redundant constraints.
 
 * Limit supported versions to GHC 9.2 and later.
+
+* Drop dependency on `syb`.
 
 
 0.5.1.1 (2026-07-13)

@@ -10,6 +10,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
+{-# OPTIONS_HADDOCK not-home #-}
 
 {- |
 
@@ -45,6 +46,8 @@ import Prelude hiding (filter, null)
 
 import Data.IxSet.Typed.Internal.Ix (Ix(Ix))
 
+-- | A term-level list of indices (t'Ix' values), indexed by the type-level list
+-- of index types @ixs@ and the element type @a@.
 data IxList (ixs :: [Type]) (a :: Type) where
   Nil   :: IxList '[] a
   (:::) :: Ix ix a -> IxList ixs a -> IxList (ix ': ixs) a
@@ -86,9 +89,9 @@ type family All c xs :: Constraint where
 
 -- | Associate indices with a given type. The constraint
 -- @'Indexable' ixs a@ says that we know how to build index sets
--- of type @'IxSet' ixs a@.
+-- of type @'Data.IxSet.Typed.IxSet' ixs a@.
 --
--- In order to use an 'IxSet' on a particular type, you have to
+-- In order to use an 'Data.IxSet.Typed.IxSet' on a particular type, you have to
 -- make it an instance of 'Indexable' yourself. There are no
 -- predefined instances of 'Indexable'.
 --
@@ -97,11 +100,11 @@ class (All Ord ixs, Ord a) => Indexable ixs a where
   -- | Define how the indices for this particular type should look like.
   --
   -- Use the 'ixList' function to construct the list of indices, and use
-  -- 'ixFun' (or 'ixGen') for individual indices.
+  -- 'Data.IxSet.Typed.ixFun' (or 'Data.IxSet.Typed.ixGen') for individual indices.
   indices :: IxList ixs a
 
--- | Constraint for membership in the type-level list. Says that 'ix'
--- is contained in the index list 'ixs'.
+-- | Constraint for membership in the type-level list. Says that @ix@
+-- is contained in the index list @ixs@.
 class Ord ix => IsIndexOf (ix :: Type) (ixs :: [Type]) where
 
   -- | Provide access to the selected index in the list.
@@ -177,7 +180,7 @@ zipWithIxList :: All Ord ixs
 zipWithIxList _ Nil        Nil        = Nil
 zipWithIxList f (x ::: xs) (y ::: ys) = f x y ::: zipWithIxList f xs ys
 
--- | Force all the 'Ix' values in the list to WHNF.
+-- | Force all the t'Ix' values in the list to WHNF.
 forceIxList :: forall ixs a . IxList ixs a -> IxList ixs a
 forceIxList Nil          = Nil
 forceIxList (ix ::: ixs) = ix !::: forceIxList ixs
@@ -188,7 +191,7 @@ forceIxList (ix ::: ixs) = ix !::: forceIxList ixs
 --------------------------------------------------------------------------
 
 -- | Create an (empty) 'IxList' from a number of indices. Useful in the 'Indexable'
--- 'indices' method. Use 'ixFun' and 'ixGen' for the individual indices.
+-- 'indices' method. Use 'Data.IxSet.Typed.ixFun' and 'Data.IxSet.Typed.ixGen' for the individual indices.
 --
 -- Note that this function takes a variable number of arguments.
 -- Here are some example types at which the function can be used:
@@ -210,8 +213,8 @@ ixList :: MkIxList ixs ixs a r => r
 ixList = ixList' id
 
 -- | Class that allows a variable number of arguments to be passed to the
--- 'ixSet' and 'mkEmpty' functions. See the documentation of these functions
--- for more information.
+-- 'Data.IxSet.Typed.ixSet' and 'Data.IxSet.Typed.mkEmpty' functions. See the
+-- documentation of these functions for more information.
 class MkIxList ixs ixs' a r | r -> a ixs ixs' where
   ixList' :: (IxList ixs a -> IxList ixs' a) -> r
 

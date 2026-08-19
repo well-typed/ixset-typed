@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_HADDOCK not-home #-}
 
 {- |
 
@@ -126,8 +127,8 @@ import           Data.Typeable  (Typeable)
 
 -- | Set with associated indices.
 --
--- The type-level list 'ixs' contains all types that are valid index keys. The
--- type 'a' is the type of elements in the indexed set.
+-- The type-level list @ixs@ contains all types that are valid index keys. The
+-- type @a@ is the type of elements in the indexed set.
 --
 data IxSet (ixs :: [Type]) (a :: Type) where
   IxSet :: !(Set a) -> IxList ixs a -> IxSet ixs a
@@ -183,11 +184,16 @@ empty = IxSet Set.empty indices
 -- Modification of 'IxSet's
 --------------------------------------------------------------------------
 
+-- | Type of functions that modify the 'Set' underlying an 'IxSet', for use with
+-- 'change'.
 type SetOp =
     forall a. Ord a => a -> Set a -> Set a
 
+-- | Type of functions that modify the 'Map'-of-'Set's corresponding to a single
+-- index, for use with 'change'.  Such functions must maintain the invariant
+-- that the 'Set's are never empty.
 type IndexOp =
-    forall k a. (Ord k,Ord a) => k -> a -> Map k (Set a) -> Map k (Set a)
+    forall ix a. (Ord ix, Ord a) => ix -> a -> Map ix (Set a) -> Map ix (Set a)
 
 -- | Higher order operator for modifying 'IxSet's.  Use this when your
 -- final function should have the form @a -> 'IxSet' a -> 'IxSet' a@,
@@ -280,7 +286,7 @@ deleteMany :: (Indexable ixs a, Foldable t) => t a -> IxSet ixs a -> IxSet ixs a
 deleteMany deletes = changeAll (\ s -> Fold.foldl' (flip Set.delete) s deletes) (Ix.deleteMany deletes)
 {-# SPECIALISE deleteMany :: Indexable ixs a => [a] -> IxSet ixs a -> IxSet ixs a #-}
 
--- | Replace the item with the given index of type 'ix'. Only works if there is
+-- | Replace the item with the given index of type @ix@. Only works if there is
 -- at most one item with that index in the 'IxSet'.
 --
 -- If you have more than one item with given index, the new item will be
@@ -296,7 +302,7 @@ updateIx i new ixset = insert new $
                      maybe ixset (flip delete ixset) $
                      getOne $ ixset @= i
 
--- | Delete the item with the given index of type 'ix'. Only works if there is
+-- | Delete the item with the given index of type @ix@. Only works if there is
 -- at most one item with that index in the 'IxSet'.
 --
 -- Will not change 'IxSet' if you have more than one item with given index.
@@ -360,7 +366,7 @@ toList = Set.toList . toSet
 
 -- | Converts an 'IxSet' to its list of elements.
 --
--- List will be sorted in ascending order by the index 'ix'.
+-- List will be sorted in ascending order by the index @ix@.
 --
 -- The list may contain duplicate entries if a single value produces multiple keys.
 toAscList :: forall proxy ix ixs a. IsIndexOf ix ixs => proxy ix -> IxSet ixs a -> [a]
@@ -368,7 +374,7 @@ toAscList _ ixset = concatMap snd (groupAscBy ixset :: [(ix, [a])])
 
 -- | Converts an 'IxSet' to its list of elements.
 --
--- List will be sorted in descending order by the index 'ix'.
+-- List will be sorted in descending order by the index @ix@.
 --
 -- The list may contain duplicate entries if a single value produces multiple keys.
 toDescList :: forall proxy ix ixs a. IsIndexOf ix ixs => proxy ix -> IxSet ixs a -> [a]
@@ -745,7 +751,7 @@ indexKeys = Map.keys . getIxMap
 -- | Returns lists of elements paired with the indices determined by
 -- type inference.
 --
--- The resulting list will be sorted in ascending order by 'ix'.
+-- The resulting list will be sorted in ascending order by @ix@.
 -- The values in @[a]@ will be sorted in ascending order as well.
 groupAscBy :: forall ix ixs a. IsIndexOf ix ixs =>  IxSet ixs a -> [(ix, [a])]
 groupAscBy = map (second Set.toAscList) . Map.toAscList . getIxMap
@@ -753,7 +759,7 @@ groupAscBy = map (second Set.toAscList) . Map.toAscList . getIxMap
 -- | Returns lists of elements paired with the indices determined by
 -- type inference.
 --
--- The resulting list will be sorted in descending order by 'ix'.
+-- The resulting list will be sorted in descending order by @ix@.
 --
 -- NOTE: The values in @[a]@ are currently sorted in ascending
 -- order. But this may change if someone bothers to add
