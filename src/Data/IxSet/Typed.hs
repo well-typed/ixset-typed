@@ -226,7 +226,7 @@ module Data.IxSet.Typed
 )
 where
 
-import           Data.Generics  (Data, gmapQ)
+import           Data.Data (Data, gmapQ)
 import           Data.IxSet.Typed.Internal.Ix  (Ix(Ix))
 import           Data.IxSet.Typed.Internal.IxList
 import           Data.IxSet.Typed.Internal.IxSet

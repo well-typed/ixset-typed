@@ -55,6 +55,8 @@
 
 * Limit supported versions to GHC 9.2 and later.
 
+* Drop dependency on `syb`.
+
 
 0.5.1.1 (2026-07-13)
 ====================
