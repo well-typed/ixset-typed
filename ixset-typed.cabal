@@ -17,7 +17,9 @@ description:
     .
     At the moment, the two packages are relatively compatible. As a consequence
     of the more precise types, a few manual tweaks are necessary when switching
-    from one to the other, but the interface is mostly the same.
+    from one to the other, but the interface is mostly the same. The main other
+    differences are strictness behaviour, and the semantics of `getRange` and
+    similar interval selection operators (see the Haddocks).
 license:             BSD3
 license-file:        COPYING
 author:              Andres Löh, Happstack team, HAppS LLC

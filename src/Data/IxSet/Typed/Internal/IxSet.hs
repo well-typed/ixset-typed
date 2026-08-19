@@ -79,7 +79,10 @@ module Data.IxSet.Typed.Internal.IxSet
      getGT,
      getLTE,
      getGTE,
+     getOrd,
+     getOrd2,
      getRange,
+     getInterval,
 
      -- * Lookup
      lookupIx,
@@ -472,25 +475,49 @@ ix @<= v = getLTE v ix
       => IxSet ixs a -> ix -> IxSet ixs a
 ix @>= v = getGTE v ix
 
--- | Returns the subset with indices in the open interval (k,k).
+-- | Returns the subset with indices in the open interval (k1,k2).
+--
+-- Note: if elements have multiple values for a single index, see caveats on
+-- 'getRange'. If you still need the old semantics, use:
+--
+-- > getLT k2 (getGT k1 ixset)
+--
 (@><) :: (Indexable ixs a, IsIndexOf ix ixs)
       => IxSet ixs a -> (ix, ix) -> IxSet ixs a
-ix @>< (v1,v2) = getLT v2 $ getGT v1 ix
+ix @>< (v1,v2) = getInterval False False v1 v2 ix
 
--- | Returns the subset with indices in [k,k).
+-- | Returns the subset with indices in the half-open interval [k1,k2).
+--
+-- Note: if elements have multiple values for a single index, see caveats on
+-- 'getRange'. If you still need the old semantics, use:
+--
+-- > getLT k2 (getGTE k1 ixset)
+--
 (@>=<) :: (Indexable ixs a, IsIndexOf ix ixs)
        => IxSet ixs a -> (ix, ix) -> IxSet ixs a
-ix @>=< (v1,v2) = getLT v2 $ getGTE v1 ix
+ix @>=< (v1,v2) = getInterval True False v1 v2 ix
 
--- | Returns the subset with indices in (k,k].
+-- | Returns the subset with indices in the half-open interval (k1,k2].
+--
+-- Note: if elements have multiple values for a single index, see caveats on
+-- 'getRange'. If you still need the old semantics, use:
+--
+-- > getLTE k2 (getGT k1 ixset)
+--
 (@><=) :: (Indexable ixs a, IsIndexOf ix ixs)
        => IxSet ixs a -> (ix, ix) -> IxSet ixs a
-ix @><= (v1,v2) = getLTE v2 $ getGT v1 ix
+ix @><= (v1,v2) = getInterval False True v1 v2 ix
 
--- | Returns the subset with indices in [k,k].
+-- | Returns the subset with indices in the closed interval [k1,k2].
+--
+-- Note: if elements have multiple values for a single index, see caveats on
+-- 'getRange'. If you still need the old semantics, use:
+--
+-- > getLTE k2 (getGTE k1 ixset)
+--
 (@>=<=) :: (Indexable ixs a, IsIndexOf ix ixs)
         => IxSet ixs a -> (ix, ix) -> IxSet ixs a
-ix @>=<= (v1,v2) = getLTE v2 $ getGTE v1 ix
+ix @>=<= (v1,v2) = getInterval True True v1 v2 ix
 
 -- | Creates the subset that has an index in the provided list.
 (@+) :: (Indexable ixs a, IsIndexOf ix ixs, Foldable f)
@@ -531,12 +558,22 @@ getGTE :: (Indexable ixs a, IsIndexOf ix ixs)
        => ix -> IxSet ixs a -> IxSet ixs a
 getGTE = getOrd2 False True True
 
--- | Returns the subset with an index within the interval provided.
--- The bottom of the interval is closed and the top is open,
--- i.e. [k1,k2).
+-- | Returns the subset with an index within the interval provided. The bottom
+-- of the interval is closed and the top is open, i.e. [k1,k2).
+--
+-- Note: if elements have multiple values for a single index, this function
+-- behaves differently to the corresponding @ixset@ function (and to
+-- @ixset-typed@ versions prior to 0.6).  Specifically, elements will be
+-- returned only if a single index value falls in the interval, rather than
+-- returning elements where one index value satisfies the lower bound and a
+-- different value satisfies the upper bound. If you still need the old
+-- semantics, use:
+--
+-- > getGTE k1 (getLT k2 ixset)
+--
 getRange :: (Indexable ixs a, IsIndexOf ix ixs)
          => ix -> ix -> IxSet ixs a -> IxSet ixs a
-getRange k1 k2 ixset = getGTE k1 (getLT k2 ixset)
+getRange = getInterval True False
 
 -- | A function for building up selectors on 'IxSet's.  Used in the
 -- various get* functions.
@@ -546,8 +583,12 @@ getOrd LT = getOrd2 True False False
 getOrd EQ = getOrd2 False True False
 getOrd GT = getOrd2 False False True
 
--- | A function for building up selectors on 'IxSet's.  Used in the
--- various get* functions.
+-- | A function for building up selectors on 'IxSet's.  Used in the various get*
+-- functions.
+--
+-- The booleans indicate whether to include values strictly less than, equal to,
+-- or strictly greater than the key.
+--
 getOrd2 :: forall ixs ix a. (Indexable ixs a, IsIndexOf ix ixs)
         => Bool -> Bool -> Bool -> ix -> IxSet ixs a -> IxSet ixs a
 getOrd2 inclt inceq incgt v = fromMapOfSets . select . getIxMap
@@ -572,6 +613,50 @@ getOrd2 inclt inceq incgt v = fromMapOfSets . select . getIxMap
         result = case eq of
           Just eqset -> Map.insertWith Set.union v eqset ltgt
           Nothing    -> ltgt
+
+-- | A function for building up interval selectors on 'IxSet's.  Used in
+-- 'getRange' and the various interval selection functions.
+--
+-- The booleans indicate whether to include the lower and upper bounds of the
+-- interval.
+--
+-- Note that it is not enough to use 'getOrd2' twice to select an interval,
+-- because that amounts to two independent queries, which may match different
+-- index values if an index is multi-valued. See further discussion at
+-- <https://github.com/well-typed/ixset-typed/issues/3 issue #3>.
+--
+-- We are careful to return the empty set if the lower bound is above the upper
+-- bound, or if the interval is open/half-open and the lower and upper bounds
+-- are the same.  (If the lower bound equals the upper bound and the interval is
+-- closed, we fall back on 'getEQ' to look up a single value.)
+--
+-- @since 0.6
+--
+getInterval :: forall ix ixs a . (Indexable ixs a, IsIndexOf ix ixs)
+            => Bool -> Bool -> ix -> ix -> IxSet ixs a -> IxSet ixs a
+getInterval inc_lower_bound inc_upper_bound k1 k2 =
+    case compare k1 k2 of
+        LT -> fromMapOfSets . select . getIxMap
+        EQ | inc_lower_bound, inc_upper_bound -> getEQ k1
+           | otherwise -> const empty
+        GT -> const empty
+  where
+    select :: IxMap ix a -> IxMap ix a
+    select index = result
+      where
+        gt_lower, open_interval :: IxMap ix a
+        eq_lower, eq_upper :: Maybe (Set a)
+        (_, eq_lower, gt_lower) = Map.splitLookup k1 index
+        (open_interval, eq_upper, _) = Map.splitLookup k2 gt_lower
+
+        lb, ub :: Maybe (Set a)
+        lb = if inc_lower_bound then eq_lower else Nothing
+        ub = if inc_upper_bound then eq_upper else Nothing
+
+        result :: IxMap ix a
+        result = maybe id (Map.insertWith Set.union k1) lb
+               $ maybe id (Map.insertWith Set.union k2) ub
+               $ open_interval
 
 -- | Internal helper function that takes a partial index from one index
 -- set and rebuilds the rest of the structure of the index set.

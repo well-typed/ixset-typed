@@ -1,6 +1,16 @@
 0.6 (Unreleased)
 ================
 
+* BREAKING CHANGE to the semantics of interval selection operators (`getRange`,
+  `(@><)`, `(@>=<)`, `(@><=)`, `(@>=<=)`): if an index has multiple values, it
+  will now be returned by interval selection only if a single value falls in the
+  range (see [#3](https://github.com/well-typed/ixset-typed/issues/3)).
+  Previously, these operators used two ordinal lookups and rebuilt the index in
+  between, meaning that an element would be returned by `getRange` if one of its
+  index values was greater than or equal to the lower bound and a different
+  index value was below the upper bound.  If you still need the old behaviour,
+  replace calls to these functions with the alternatives given in the Haddocks.
+
 * Add various new API functions:
 
   - Lookup: `lookupIx`, `lookupIxMany`, `lookupOne`

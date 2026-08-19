@@ -14,9 +14,11 @@ resulting in possible run-time errors when no suitable index exists. In
 Thus, `ixset-typed` should be safer to use than `ixset`, but in turn requires
 more GHC extensions.
 
-At the moment, the two packages are relatively compatible. As a consequence
-of the more precise types, a few manual tweaks are necessary when switching
-from one to the other, but the interface is mostly the same.
+At the moment, the two packages are relatively compatible. As a consequence of
+the more precise types, a few manual tweaks are necessary when switching from
+one to the other, but the interface is mostly the same. The main other
+differences are strictness behaviour, and the semantics of `getRange` and
+similar interval selection operators (see the Haddocks).
 
   [ixset]: https://hackage.haskell.org/package/ixset
 

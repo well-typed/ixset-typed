@@ -53,6 +53,10 @@ data G a b
     = G a b
       deriving (Eq, Ord, Show, Data)
 
+data Multi
+    = Multi [String]
+      deriving (Eq, Ord, Show, Data)
+
 fooCalcs :: Foo -> String
 fooCalcs (Foo s _) = s : "bar"
 
@@ -62,6 +66,7 @@ inferIxSet "MultiIndexed"  ''MultiIndex   'noCalcs  [''String, ''Int, ''Integer,
 inferIxSet "Triples"       ''Triple       'noCalcs  [''Int]
 -- inferIxSet "Gs"            ''G            'noCalcs  [''Int]
 inferIxSet "Foos"          ''Foo          'fooCalcs [''Char, ''Int]
+inferIxSet "Multis"        ''Multi        'noCalcs  [''String]
 
 instance Indexable '[Int] S where
     indices = ixList (ixFun (\ (S x) -> [length x]))
@@ -255,22 +260,52 @@ prop_sureelem ixset foo@(Foo _string intidx) =
 sureelem :: TestTree
 sureelem = testProperty "query / insert interaction" $ prop_sureelem
 
-prop_ranges :: Foos -> Int -> Int -> Bool
-prop_ranges ixset intidx1 intidx2 =
-    ((ixset @><   (intidx1,intidx2)) == (gt1 &&& lt2)) &&
-    ((ixset @>=<  (intidx1,intidx2)) == ((gt1 ||| eq1) &&& lt2)) &&
-    ((ixset @><=  (intidx1,intidx2)) == (gt1 &&& (lt2 ||| eq2))) &&
-    ((ixset @>=<= (intidx1,intidx2)) == ((gt1 ||| eq1) &&& (lt2 ||| eq2)))
+-- | The interval (x,y) is (x,+inf) /\ (-inf,y)
+prop_ranges1 :: Foos -> Int -> Int -> Bool
+prop_ranges1 ixset intidx1 intidx2 =
+    ((ixset @><   (intidx1,intidx2)) == (gt1 &&& lt2))
+    where
+      gt1  = ixset @> intidx1
+      lt2  = ixset @< intidx2
+
+-- | The interval [x,y) is ({x} \/ (x,+inf)) /\ (-inf,y)
+prop_ranges2 :: Foos -> Int -> Int -> Bool
+prop_ranges2 ixset intidx1 intidx2 =
+    ((ixset @>=<  (intidx1,intidx2)) == ((gt1 ||| eq1) &&& lt2))
     where
       eq1  = ixset @= intidx1
-      _lt1 = ixset @< intidx1
+      gt1  = ixset @> intidx1
+      lt2  = ixset @< intidx2
+
+-- | The interval (x,y] is (x,+inf) /\ ({y} \/ (-inf,y))
+prop_ranges3 :: Foos -> Int -> Int -> Bool
+prop_ranges3 ixset intidx1 intidx2 =
+    ((ixset @><= (intidx1,intidx2)) == (gt1 &&& (lt2 ||| eq2)))
+    where
       gt1  = ixset @> intidx1
       eq2  = ixset @= intidx2
       lt2  = ixset @< intidx2
-      _gt2 = ixset @> intidx2
 
+-- | The interval [x,y] is ({x} \/ (x,+inf)) /\ ({y} \/ (-inf,y))
+prop_ranges4 :: Foos -> Int -> Int -> Bool
+prop_ranges4 ixset intidx1 intidx2 =
+    ((ixset @>=<= (intidx1,intidx2)) == ((gt1 ||| eq1) &&& (lt2 ||| eq2)))
+    where
+      eq1  = ixset @= intidx1
+      gt1  = ixset @> intidx1
+      eq2  = ixset @= intidx2
+      lt2  = ixset @< intidx2
+
+-- | Test properties for intervals.  These all work on the assumption that there
+-- is at most one value for each index (see 'multiValued' for tests that cover
+-- the possibility of more values).
 ranges :: TestTree
-ranges = testProperty "ranges" $ prop_ranges
+ranges = testGroup "ranges"
+  [ testProperty "@><"   prop_ranges1
+  , testProperty "@>=<"  prop_ranges2
+  , testProperty "@><="  prop_ranges3
+  , testProperty "@>=<=" prop_ranges4
+  ]
 
 funSet :: IxSet '[Int] S
 funSet = IxSet.fromList [S "", S "abc", S "def", S "abcde"]
@@ -384,6 +419,34 @@ multiIndexed =
     [ testCase "find an element" (True @=? findElement 1 1)
     ]
 
+multiSet :: Multis
+multiSet = fromList [ Multi ["abc", "def", "ghi", "jkl"]
+                    , Multi ["ghi", "jkl"]
+                    , Multi ["def", "ghi"]
+                    , Multi ["def"]
+                    ]
+
+multiValued :: TestTree
+multiValued =
+  testGroup "MultiValued" $
+    [ testCase "find a value" (1 @=? (size $ multiSet @= "abc"))
+    , testCase "find a value with multiple occurrences" (3 @=? (size $ multiSet @= "ghi"))
+    , testCase "find a value with different indices" (2 @=? (size $ multiSet @= "ghi" @= "jkl"))
+    , testCase "find a range" (1 @=? (size $ getRange "aba" "abd" $ multiSet))
+    , testCase "find a missing range" (0 @=? (size $ getRange "abd" "abe" $ multiSet))
+    , testCase "find a missing range (old getRange)" (1 @=? (size $ getGTE "abd" (getLT "abe" multiSet)))
+    , testCase "find a @>=<" (1 @=? (size $ multiSet @>=< ("abc","abd")))
+    , testCase "find a missing @>=<" (0 @=? (size $ multiSet @>=< ("abd","abe")))
+    , testCase "find a @><" (1 @=? (size $ multiSet @>< ("aba","abd")))
+    , testCase "find a missing @><" (0 @=? (size $ multiSet @>< ("abc","abe")))
+    , testCase "find a @><=" (3 @=? (size $ multiSet @><= ("aba","def")))
+    , testCase "find a missing @><=" (0 @=? (size $ multiSet @><= ("abc","abb")))
+    , testCase "find a @>=<=" (3 @=? (size $ multiSet @>=<= ("abc","def")))
+    , testCase "find a missing @>=<=" (0 @=? (size $ multiSet @>=<= ("abd","dee")))
+    , testCase "index of range result" (1 @=? size (multiSet @>< ("abc","ghi") @= "abc"))
+    , testCase "no empty keys in range result" ([] @=? [k | (k, vs) <- groupBy (multiSet @>< ("abc","ghi")) :: [(String,[Multi])], Prelude.null vs])
+    ]
+
 allTests :: TestTree
 allTests =
   testGroup "ixset-typed tests" $
@@ -392,6 +455,7 @@ allTests =
       , ixSetCheckSetMethods
       , badIndexSafeguard
       , multiIndexed
+      , multiValued
       , testTriple
       , funIndexes
       , projectIndices
